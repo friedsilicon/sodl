@@ -1,0 +1,152 @@
+// Advanced SODL Examples
+// This file demonstrates complex features and patterns in SODL
+
+// Import common types and utilities
+import { UUID, Timestamp, Money, GeoLocation } from "common_types"
+import { EmailAddress, PhoneNumber, IPAddress } from "validated_types"
+import { * } from "crypto_types" as Crypto
+
+// Advanced enum with explicit values and documentation
+enum TransactionStatus {
+    Pending = 0x01,    // Transaction initiated
+    Verified = 0x02,   // Transaction verified but not processed
+    Processing = 0x04, // Transaction is being processed
+    Completed = 0x08,  // Transaction successfully completed
+    Failed = 0x10,     // Transaction failed
+    Reversed = 0x20    // Transaction was reversed
+}
+
+// Complex union with multiple options
+union AuthenticationFactor {
+    PasswordHash,
+    TOTPToken,
+    BiometricData,
+    SecurityKey,
+    RecoveryCode
+}
+
+// Struct with nested types and constraints
+struct SecurityConfiguration {
+    maxLoginAttempts: uint8, range(3, 10),
+    passwordPolicy: {
+        minLength: uint8, range(8, 128),
+        requireSpecialChars: bool,
+        requireNumbers: bool,
+        requireUppercase: bool,
+        passwordHistory: uint8, range(0, 24)
+    },
+    sessionTimeout: uint32, range(300, 86400)  // 5 minutes to 24 hours in seconds
+}
+
+// Key with complex validation
+key SessionKey {
+    sessionId: type = Crypto.SHA256Hash,
+    deviceFingerprint: type = string, pattern = "^[a-f0-9]{64}$",
+    ipAddress: type = IPAddress
+}
+
+// Object with advanced type constraints and relationships
+object UserSession {
+    sessionId: type = Crypto.SHA256Hash, assigned = random, required, key,
+    userId: type = UUID, required, key,
+    deviceInfo: {
+        userAgent: type = string, required,
+        ipAddress: type = IPAddress, required,
+        geoLocation: type = GeoLocation, optional,
+        deviceFingerprint: type = string, pattern = "^[a-f0-9]{64}$"
+    },
+    authFactors: type = [AuthenticationFactor; 3],
+    securityLevel: type = uint8, range(1, 5),
+    lastActivity: type = Timestamp,
+    expiresAt: type = Timestamp,
+    metadata: type = tlv<string>  // Variable length metadata
+}
+
+// Complex object with nested arrays and validation
+object ECommerceOrder {
+    orderId: type = UUID, assigned = counter, required, key,
+    customer: {
+        userId: type = UUID, required,
+        email: type = EmailAddress, required,
+        phone: type = PhoneNumber, optional,
+        shippingAddresses: type = [Address; 5],
+        preferredAddress: type = uint8, range(0, 4)
+    },
+    items: type = [{
+        productId: type = UUID,
+        quantity: type = uint16, range(1, 1000),
+        price: type = Money,
+        discounts: type = [string; 5],
+        metadata: type = tlv<string>
+    }; 50],
+    payment: {
+        method: type = string,
+        status: type = TransactionStatus,
+        amount: type = Money,
+        currency: type = string, pattern = "^[A-Z]{3}$",
+        processorRef: type = string
+    },
+    status: type = string,
+    createdAt: type = Timestamp,
+    updatedAt: type = Timestamp
+}
+
+// Advanced keymap with multiple relationships and cascade delete
+keymap SessionKey:UserSession {
+    sessionId -> sessionId,
+    deviceFingerprint -> deviceInfo.deviceFingerprint,
+    ipAddress -> deviceInfo.ipAddress
+}, primary, name = "SessionLookup", cascadeDelete;
+
+// Demonstration of circular references and complex relationships
+object Department {
+    deptId: type = UUID, assigned = counter, required, key,
+    name: type = string, required,
+    managerId: type = UUID, optional,  // References an Employee
+    location: type = GeoLocation,
+    budget: type = Money,
+    employees: type = [UUID; 100]  // Array of Employee IDs
+}
+
+object Employee {
+    employeeId: type = UUID, assigned = counter, required, key,
+    departmentId: type = UUID, required,  // References a Department
+    supervisor: type = UUID, optional,     // References another Employee
+    subordinates: type = [UUID; 20],      // Array of Employee IDs
+    permissions: type = [string; 50],
+    accessLevel: type = uint8, range(1, 10),
+    hireDate: type = Timestamp,
+    status: type = string, pattern = "^(Active|OnLeave|Terminated)$"
+}
+
+// Complex keymaps for circular references
+keymap DepartmentManager:Department {
+    managerId -> Employee.employeeId
+}, name = "DepartmentManagement";
+
+keymap EmployeeDepartment:Employee {
+    departmentId -> Department.deptId,
+    employeeId -> Employee.employeeId
+}, primary, name = "EmployeeDepartmentRelation";
+
+// Demonstration of type inheritance and composition
+struct BaseAuditInfo {
+    createdAt: type = Timestamp,
+    createdBy: type = UUID,
+    updatedAt: type = Timestamp,
+    updatedBy: type = UUID,
+    version: type = uint32
+}
+
+object AuditedEntity {
+    entityId: type = UUID, assigned = counter, required, key,
+    entityType: type = string,
+    auditInfo: type = BaseAuditInfo,
+    changes: type = [{
+        field: type = string,
+        oldValue: type = string,
+        newValue: type = string,
+        timestamp: type = Timestamp,
+        changedBy: type = UUID
+    }; 100]
+}

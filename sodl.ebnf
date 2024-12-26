@@ -1,0 +1,101 @@
+# Combine all the updates into a single full version of the EBNF spec file and create a descriptive file with examples.
+
+# Full content combining the original file and all updates.
+final_spec_content = """
+/* DataModel Language (DML) Complete EBNF */
+
+/* Top-Level Program Structure */
+Program             ::= ImportStatement* Declaration*
+
+/* Import Statement */
+ImportStatement     ::= "import" ImportTarget "from" StringLiteral
+ImportTarget        ::= "{" IdentList "}"          (* Selective imports *)
+                        | "*"                      (* Wildcard import *)
+                        | "{" IdentList "}" "as" Identifier (* Selective imports with aliasing *)
+
+/* Declarations */
+Declaration         ::= EnumDecl 
+                      | UnionDecl 
+                      | StructDecl 
+                      | KeyDecl 
+                      | ObjectDecl 
+                      | KeyMapDecl
+
+/* Enum Declaration */
+EnumDecl           ::= "enum" Identifier "{" EnumValueList "}"
+EnumValueList      ::= EnumValue ("," EnumValue)* ","?
+EnumValue          ::= Identifier ("=" IntegerLiteral)?
+
+/* Union Declaration */
+UnionDecl          ::= "union" Identifier "{" IdentList "}"
+
+/* Struct Declaration */
+StructDecl         ::= "struct" Identifier "{" StructFieldList "}"
+StructFieldList    ::= StructField ("," StructField)* ","?
+StructField        ::= Identifier ":" Type 
+                       ("," "strict" "=" Literal)?
+
+/* Key Declaration */
+KeyDecl            ::= "key" Identifier "{" KeyFieldList "}"
+KeyFieldList       ::= KeyField ("," KeyField)* ","?
+KeyField           ::= Identifier ":" KeyFieldProps
+KeyFieldProps      ::= "type" "=" Type ("," MetaProp)*
+
+/* Object Declaration */
+ObjectDecl         ::= "object" Identifier "{" ObjectFieldList "}"
+ObjectFieldList    ::= ObjectField ("," ObjectField)* ","?
+ObjectField        ::= Identifier ":" Type 
+                       ("," ObjectFieldProp)*
+                       ("," "strict" "=" Literal)?
+ObjectFieldProp    ::= "assigned" "=" Identifier
+                     | "required"
+                     | "key"
+                     | "default" "=" Value
+                     | "optional"
+
+/* Key Map Declaration */
+KeyMapDecl         ::= "keymap" Identifier ":" Identifier "{" 
+                       KeyFieldList "}" 
+                       KeyMapProps*
+
+KeyFieldList       ::= Identifier ":" Identifier ("," Identifier ":" Identifier)* ","?
+
+KeyMapProps        ::= "primary"
+                     | "name" "=" StringLiteral
+                     | "cascadeDelete"
+
+/* Type System */
+Type               ::= BasicType | ComplexType | UserType | ConstrainedType
+BasicType          ::= "uint8" | "uint16" | "uint32" | "uint64" 
+                    | "int8" | "int16" | "int32" | "int64"
+                    | "float32" | "float64" 
+                    | "string" | "bool" | "Timestamp"
+ComplexType        ::= ListType | TLVType
+ListType           ::= "[" Type ";" IntegerLiteral "]"
+TLVType            ::= "tlv" "<" Type ">"
+UserType           ::= Identifier
+
+/* Enhanced Type Constraints */
+TypeConstraint     ::= "range" "(" NumberLiteral "," NumberLiteral ")" 
+                      | "pattern" "=" StringLiteral
+ConstrainedType    ::= BasicType TypeConstraint
+
+/* Object Literals */
+ObjectLiteral      ::= "{" ObjectLiteralFieldList "}"
+ObjectLiteralFieldList ::= ObjectLiteralField ("," ObjectLiteralField)* ","?
+ObjectLiteralField ::= Identifier ":" Value
+
+/* Basic Tokens */
+IdentList          ::= Identifier ("," Identifier)* ","?
+Identifier         ::= [a-zA-Z_][a-zA-Z0-9_]*
+NumberLiteral      ::= IntegerLiteral | FloatLiteral
+IntegerLiteral     ::= [0-9]+
+FloatLiteral       ::= [0-9]+ "." [0-9]+
+StringLiteral      ::= '"' [^"]* '"'
+BooleanLiteral     ::= "true" | "false"
+Value              ::= NumberLiteral 
+                     | StringLiteral 
+                     | BooleanLiteral 
+                     | Identifier
+Literal            ::= NumberLiteral | StringLiteral | BooleanLiteral
+

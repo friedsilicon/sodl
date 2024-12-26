@@ -1,0 +1,120 @@
+// DataModel (DML) Comprehensive Example
+
+// Import common types
+import { UUID, Timestamp } from "common_types"
+
+// Enum for user roles
+enum UserRole {
+    Admin = 1,
+    Editor = 2,
+    Viewer = 3,
+    Guest = 4
+}
+
+// Enum for account status
+enum AccountStatus {
+    Active = 1,
+    Suspended = 2,
+    Locked = 3,
+    Pending = 4
+}
+
+// Union type for contact methods
+union ContactMethod {
+    Email, 
+    Phone, 
+    Address
+}
+
+// Struct for detailed address
+struct Address {
+    street: string,
+    city: string,
+    state: string,
+    zipCode: string,
+    country: string
+}
+
+// Key for User Profile
+key UserProfile {
+    userId: type = UUID,
+    username: type = string,
+    email: type = string
+}
+
+// Key for Authentication
+key AuthKey {
+    loginToken: type = string
+}
+
+// Complex User Account Object
+object UserAccount {
+    userId: type = UUID, assigned = counter, required, key;
+    username: type = string, required, key;
+    email: type = string, required;
+    profile: type = UserProfile;
+    role: type = UserRole, default = UserRole.Guest;
+    status: type = AccountStatus, default = AccountStatus.Pending;
+    contactMethod: type = ContactMethod;
+    addresses: type = [Address; 3];
+    loginAttempts: type = uint8, default = 0;
+    lastLoginTimestamp: type = Timestamp;
+    twoFactorEnabled: type = bool, default = false;
+}
+
+// Object for User Preferences
+object UserPreferences {
+    userId: type = UUID, required, key;
+    theme: type = string, default = "light";
+    notifications: type = bool, default = true;
+    language: type = string, default = "en";
+}
+
+// Key Maps for User Account
+keymap UserProfile:UserAccount {
+    username -> username,
+    email -> email
+}, primary, name = "ProfileToAccount";
+
+keymap AuthKey:UserAccount {
+    loginToken -> userId
+}, name = "AuthToAccount";
+
+keymap UserId:UserAccount {
+    userId -> userId
+}, primary, name = "UserIdToAccount";
+
+// Organization Key and Object
+key OrganizationKey {
+    orgId: type = UUID,
+    orgName: type = string
+}
+
+object Organization {
+    orgId: type = UUID, assigned = counter, required, key;
+    orgName: type = string, required;
+    domain: type = string;
+    foundedDate: type = Timestamp;
+    status: type = string;
+}
+
+// Membership Object
+object OrganizationMembership {
+    userId: type = UUID, required, key;
+    orgId: type = UUID, required, key;
+    role: type = UserRole;
+    joinDate: type = Timestamp;
+}
+
+// Key Maps for Organization
+keymap OrganizationKey:Organization {
+    orgId -> orgId
+}, primary, name = "OrgKeyToOrg";
+
+keymap OrganizationKey:OrganizationMembership {
+    orgId -> orgId
+}, name = "OrgKeyToMembership";
+
+keymap UserProfile:OrganizationMembership {
+    userId -> userId
+}, name = "UserToMembership";
