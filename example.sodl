@@ -37,37 +37,37 @@ struct Address {
 
 // Key for User Profile
 key UserProfile {
-    userId: type = UUID,
-    username: type = string,
-    email: type = string
+    userId: UUID,
+    username: string,
+    email: string
 }
 
 // Key for Authentication
 key AuthKey {
-    loginToken: type = string
+    loginToken: string
 }
 
 // Complex User Account Object
 object UserAccount {
-    userId: type = UUID, assigned = counter, required, key;
-    username: type = string, required, key;
-    email: type = string, required;
-    profile: type = UserProfile;
-    role: type = UserRole, default = UserRole.Guest;
-    status: type = AccountStatus, default = AccountStatus.Pending;
-    contactMethod: type = ContactMethod;
-    addresses: type = [Address; 3];
-    loginAttempts: type = uint8, default = 0;
-    lastLoginTimestamp: type = Timestamp;
-    twoFactorEnabled: type = bool, default = false;
+    userId: UUID, assigned = counter, required, key;
+    username: string, required, key;
+    email: string, required;
+    profile: UserProfile;
+    role: UserRole, default = UserRole.Guest;
+    status: AccountStatus, default = AccountStatus.Pending;
+    contactMethod: ContactMethod;
+    addresses: [Address; 3];
+    loginAttempts: uint8, default = 0;
+    lastLoginTimestamp: Timestamp;
+    twoFactorEnabled: bool, default = false;
 }
 
 // Object for User Preferences
 object UserPreferences {
-    userId: type = UUID, required, key;
-    theme: type = string, default = "light";
-    notifications: type = bool, default = true;
-    language: type = string, default = "en";
+    userId: UUID, required, key;
+    theme: string, default = "light";
+    notifications: bool, default = true;
+    language: string, default = "en";
 }
 
 // Key Maps for User Account
@@ -86,24 +86,24 @@ keymap UserId:UserAccount {
 
 // Organization Key and Object
 key OrganizationKey {
-    orgId: type = UUID,
-    orgName: type = string
+    orgId: UUID,
+    orgName: string
 }
 
 object Organization {
-    orgId: type = UUID, assigned = counter, required, key;
-    orgName: type = string, required;
-    domain: type = string;
-    foundedDate: type = Timestamp;
-    status: type = string;
+    orgId: UUID, assigned = counter, required, key;
+    orgName: string, required;
+    domain: string;
+    foundedDate: Timestamp;
+    status: string;
 }
 
 // Membership Object
 object OrganizationMembership {
-    userId: type = UUID, required, key;
-    orgId: type = UUID, required, key;
-    role: type = UserRole;
-    joinDate: type = Timestamp;
+    userId: UUID, required, key;
+    orgId: UUID, required, key;
+    role: UserRole;
+    joinDate: Timestamp;
 }
 
 // Key Maps for Organization

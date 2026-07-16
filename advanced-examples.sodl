@@ -40,55 +40,55 @@ struct SecurityConfiguration {
 
 // Key with complex validation
 key SessionKey {
-    sessionId: type = Crypto.SHA256Hash,
-    deviceFingerprint: type = string, pattern = "^[a-f0-9]{64}$",
-    ipAddress: type = IPAddress
+    sessionId: Crypto.SHA256Hash,
+    deviceFingerprint: string, pattern = "^[a-f0-9]{64}$",
+    ipAddress: IPAddress
 }
 
 // Object with advanced type constraints and relationships
 object UserSession {
-    sessionId: type = Crypto.SHA256Hash, assigned = random, required, key,
-    userId: type = UUID, required, key,
+    sessionId: Crypto.SHA256Hash, assigned = random, required, key,
+    userId: UUID, required, key,
     deviceInfo: {
-        userAgent: type = string, required,
-        ipAddress: type = IPAddress, required,
-        geoLocation: type = GeoLocation, optional,
-        deviceFingerprint: type = string, pattern = "^[a-f0-9]{64}$"
+        userAgent: string, required,
+        ipAddress: IPAddress, required,
+        geoLocation: GeoLocation, optional,
+        deviceFingerprint: string, pattern = "^[a-f0-9]{64}$"
     },
-    authFactors: type = [AuthenticationFactor; 3],
-    securityLevel: type = uint8, range(1, 5),
-    lastActivity: type = Timestamp,
-    expiresAt: type = Timestamp,
-    metadata: type = tlv<string>  // Variable length metadata
+    authFactors: [AuthenticationFactor; 3],
+    securityLevel: uint8, range(1, 5),
+    lastActivity: Timestamp,
+    expiresAt: Timestamp,
+    metadata: tlv<string>  // Variable length metadata
 }
 
 // Complex object with nested arrays and validation
 object ECommerceOrder {
-    orderId: type = UUID, assigned = counter, required, key,
+    orderId: UUID, assigned = counter, required, key,
     customer: {
-        userId: type = UUID, required,
-        email: type = EmailAddress, required,
-        phone: type = PhoneNumber, optional,
-        shippingAddresses: type = [Address; 5],
-        preferredAddress: type = uint8, range(0, 4)
+        userId: UUID, required,
+        email: EmailAddress, required,
+        phone: PhoneNumber, optional,
+        shippingAddresses: [Address; 5],
+        preferredAddress: uint8, range(0, 4)
     },
-    items: type = [{
-        productId: type = UUID,
-        quantity: type = uint16, range(1, 1000),
-        price: type = Money,
-        discounts: type = [string; 5],
-        metadata: type = tlv<string>
+    items: [{
+        productId: UUID,
+        quantity: uint16, range(1, 1000),
+        price: Money,
+        discounts: [string; 5],
+        metadata: tlv<string>
     }; 50],
     payment: {
-        method: type = string,
-        status: type = TransactionStatus,
-        amount: type = Money,
-        currency: type = string, pattern = "^[A-Z]{3}$",
-        processorRef: type = string
+        method: string,
+        status: TransactionStatus,
+        amount: Money,
+        currency: string, pattern = "^[A-Z]{3}$",
+        processorRef: string
     },
-    status: type = string,
-    createdAt: type = Timestamp,
-    updatedAt: type = Timestamp
+    status: string,
+    createdAt: Timestamp,
+    updatedAt: Timestamp
 }
 
 // Advanced keymap with multiple relationships and cascade delete
@@ -100,23 +100,23 @@ keymap SessionKey:UserSession {
 
 // Demonstration of circular references and complex relationships
 object Department {
-    deptId: type = UUID, assigned = counter, required, key,
-    name: type = string, required,
-    managerId: type = UUID, optional,  // References an Employee
-    location: type = GeoLocation,
-    budget: type = Money,
-    employees: type = [UUID; 100]  // Array of Employee IDs
+    deptId: UUID, assigned = counter, required, key,
+    name: string, required,
+    managerId: UUID, optional,  // References an Employee
+    location: GeoLocation,
+    budget: Money,
+    employees: [UUID; 100]  // Array of Employee IDs
 }
 
 object Employee {
-    employeeId: type = UUID, assigned = counter, required, key,
-    departmentId: type = UUID, required,  // References a Department
-    supervisor: type = UUID, optional,     // References another Employee
-    subordinates: type = [UUID; 20],      // Array of Employee IDs
-    permissions: type = [string; 50],
-    accessLevel: type = uint8, range(1, 10),
-    hireDate: type = Timestamp,
-    status: type = string, pattern = "^(Active|OnLeave|Terminated)$"
+    employeeId: UUID, assigned = counter, required, key,
+    departmentId: UUID, required,  // References a Department
+    supervisor: UUID, optional,     // References another Employee
+    subordinates: [UUID; 20],      // Array of Employee IDs
+    permissions: [string; 50],
+    accessLevel: uint8, range(1, 10),
+    hireDate: Timestamp,
+    status: string, pattern = "^(Active|OnLeave|Terminated)$"
 }
 
 // Complex keymaps for circular references
@@ -131,22 +131,22 @@ keymap EmployeeDepartment:Employee {
 
 // Demonstration of type inheritance and composition
 struct BaseAuditInfo {
-    createdAt: type = Timestamp,
-    createdBy: type = UUID,
-    updatedAt: type = Timestamp,
-    updatedBy: type = UUID,
-    version: type = uint32
+    createdAt: Timestamp,
+    createdBy: UUID,
+    updatedAt: Timestamp,
+    updatedBy: UUID,
+    version: uint32
 }
 
 object AuditedEntity {
-    entityId: type = UUID, assigned = counter, required, key,
-    entityType: type = string,
-    auditInfo: type = BaseAuditInfo,
-    changes: type = [{
-        field: type = string,
-        oldValue: type = string,
-        newValue: type = string,
-        timestamp: type = Timestamp,
-        changedBy: type = UUID
+    entityId: UUID, assigned = counter, required, key,
+    entityType: string,
+    auditInfo: BaseAuditInfo,
+    changes: [{
+        field: string,
+        oldValue: string,
+        newValue: string,
+        timestamp: Timestamp,
+        changedBy: UUID
     }; 100]
 }

@@ -43,11 +43,13 @@ StructFieldList    ::= StructField ("," StructField)* ","?
 StructField        ::= Identifier ":" Type
                        ("," "strict" "=" Literal)?
 
-/* Key Declaration */
+/* Key Declaration
+ * D2: the `type =` prefix is dropped; a key field is `Identifier ":" Type`
+ * followed by props, exactly like a struct or object field.
+ */
 KeyDecl            ::= "key" Identifier "{" KeyFieldList "}"
 KeyFieldList       ::= KeyField ("," KeyField)* ","?
-KeyField           ::= Identifier ":" KeyFieldProps
-KeyFieldProps      ::= "type" "=" Type ("," MetaProp)*
+KeyField           ::= Identifier ":" Type ("," MetaProp)*
 
 /* Object Declaration */
 ObjectDecl         ::= "object" Identifier "{" ObjectFieldList "}"
@@ -130,16 +132,23 @@ Comment            ::= "//" [^\n]*
  * OPEN DECISIONS — productions above are knowingly unresolved.
  * Nothing here is a guess; each awaits an explicit call.
  *
- * D1  Object field terminator: ObjectFieldList uses "," (grammar's
- *     original). README + example.sodl use ";". Unresolved.
- * D2  `type =` prefix: ObjectField above omits it; every example writes
- *     `userId: type = UUID`. KeyFieldProps already has it — the grammar
- *     contradicts itself about one construct (defects 6, 27).
+ * D1  Object field terminator. DECIDED IN PART: ";" for object/key
+ *     fields (README + example.sodl, the canonical dialect). The note
+ *     attached to that call — "all attributes should end in semicolon" —
+ *     may also mean ";" inside struct bodies, which both files currently
+ *     comma-separate. Awaiting disambiguation; ObjectFieldList and
+ *     StructFieldList below still carry the original ",".
+ * D2  `type =` prefix: DECIDED — dropped everywhere. Applied to
+ *     KeyField above and to all 107 sites across example.sodl,
+ *     advanced-examples.sodl, and README.md. This resolves the
+ *     grammar's self-contradiction (defects 6, 27): KeyFieldProps was
+ *     the sole production carrying the prefix and is now gone.
  * D3  Constraints: ConstrainedType makes range/pattern part of the TYPE
  *     (`uint8 range(0,120)`). Every example writes them as comma-led
  *     field PROPS. Both cannot be true (defect 5). MetaProp is referenced
- *     by KeyFieldProps and never defined — its definition falls out of
- *     this call (defect 15).
+ *     by KeyField and never defined — its definition falls out of this
+ *     call (defect 15). Note the no-comma form ConstrainedType encodes
+ *     matches zero sites in either example file.
  * D4  Anonymous inline object types — used 5x in advanced-examples,
  *     absent here (defect 13). Interacts with D7: instance literals
  *     introduce the recursive brace production anyway.

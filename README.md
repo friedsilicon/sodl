@@ -78,9 +78,9 @@ Keys define unique identifiers and indexing structures. They can include multipl
 
 ```sodl
 key UserProfile {
-    userId: type = UUID,
-    username: type = string,
-    email: type = string
+    userId: UUID,
+    username: string,
+    email: string
 }
 ```
 
@@ -90,10 +90,10 @@ Objects are the most complex and feature-rich construct in SODL. They represent 
 
 ```sodl
 object UserAccount {
-    userId: type = UUID, assigned = counter, required, key;
-    username: type = string, required;
-    email: type = string, required;
-    profile: type = UserProfile;
+    userId: UUID, assigned = counter, required, key;
+    username: string, required;
+    email: string, required;
+    profile: UserProfile;
 }
 ```
 
@@ -295,9 +295,9 @@ While SODL and Parquet might seem very different at first glance, they both deal
 
    ```sodl
    object User {
-       userId: type = UUID, assigned = counter, required, key;
-       age: type = uint8, range(0, 120);
-       email: type = string, pattern = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$";
+       userId: UUID, assigned = counter, required, key;
+       age: uint8, range(0, 120);
+       email: string, pattern = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$";
    }
    ```
 
@@ -412,11 +412,11 @@ A typical integration might look like this:
 ```sodl
 // SODL definition for active data
 object AnalyticsEvent {
-    eventId: type = UUID, assigned = counter, required, key;
-    timestamp: type = Timestamp, required;
-    userId: type = UUID, required;
-    eventType: type = string, required;
-    properties: type = tlv<string>;
+    eventId: UUID, assigned = counter, required, key;
+    timestamp: Timestamp, required;
+    userId: UUID, required;
+    eventType: string, required;
+    properties: tlv<string>;
 }
 
 // This data might later be stored in Parquet format:
