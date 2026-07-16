@@ -1,24 +1,33 @@
-# Combine all the updates into a single full version of the EBNF spec file and create a descriptive file with examples.
+/* SODL — Structured Object Definition Language
+ * Complete EBNF grammar.
+ *
+ * Reconciled against sodl-grammar-audit.md. Decisions D1-D9 are recorded
+ * in DECISIONS.md; this file is their encoding.
+ *
+ * Conventions:
+ *   ";" terminates a FIELD.  "," separates PROPS within a field.
+ */
 
-# Full content combining the original file and all updates.
-final_spec_content = """
-/* DataModel Language (DML) Complete EBNF */
+/* Top-Level Program Structure
+ * D7: a .sodl file carries schema AND populated data.
+ */
+Program             ::= ImportStatement* TopLevelItem*
+TopLevelItem        ::= Declaration | InstanceDecl
 
-/* Top-Level Program Structure */
-Program             ::= ImportStatement* Declaration*
-
-/* Import Statement */
+/* Import Statement — defect 14: "as" binds after the module string,
+ * and the wildcard is braced.
+ */
 ImportStatement     ::= "import" ImportTarget "from" StringLiteral
-ImportTarget        ::= "{" IdentList "}"          (* Selective imports *)
-                        | "*"                      (* Wildcard import *)
-                        | "{" IdentList "}" "as" Identifier (* Selective imports with aliasing *)
+                        ("as" Identifier)?
+ImportTarget        ::= "{" IdentList "}"      (* Selective imports *)
+                      | "{" "*" "}"            (* Wildcard import *)
 
 /* Declarations */
-Declaration         ::= EnumDecl 
-                      | UnionDecl 
-                      | StructDecl 
-                      | KeyDecl 
-                      | ObjectDecl 
+Declaration         ::= EnumDecl
+                      | UnionDecl
+                      | StructDecl
+                      | KeyDecl
+                      | ObjectDecl
                       | KeyMapDecl
 
 /* Enum Declaration */
@@ -29,73 +38,150 @@ EnumValue          ::= Identifier ("=" IntegerLiteral)?
 /* Union Declaration */
 UnionDecl          ::= "union" Identifier "{" IdentList "}"
 
-/* Struct Declaration */
+/* Struct Declaration
+ * D1: fields terminate with ";".  D2: no "type =" prefix.
+ * D4: Type here is never an anonymous inline object.
+ */
 StructDecl         ::= "struct" Identifier "{" StructFieldList "}"
-StructFieldList    ::= StructField ("," StructField)* ","?
-StructField        ::= Identifier ":" Type 
-                       ("," "strict" "=" Literal)?
+StructFieldList    ::= StructField+
+StructField        ::= Identifier ":" Type ("," StructFieldProp)* ";"
+StructFieldProp    ::= Constraint
+                     | "strict" "=" Literal
 
-/* Key Declaration */
+/* Key Declaration
+ * D6: a key names an access path by which an object may be addressed.
+ * Every field listed here must be annotated `key` on the target object,
+ * and every `key`-annotated field must be reachable from some key or
+ * keymap. Both directions are statically checked; neither is expressible
+ * in EBNF alone. See DECISIONS.md D6.
+ */
 KeyDecl            ::= "key" Identifier "{" KeyFieldList "}"
-KeyFieldList       ::= KeyField ("," KeyField)* ","?
-KeyField           ::= Identifier ":" KeyFieldProps
-KeyFieldProps      ::= "type" "=" Type ("," MetaProp)*
+KeyFieldList       ::= KeyField+
+KeyField           ::= Identifier ":" Type ("," MetaProp)* ";"
 
-/* Object Declaration */
+/* Object Declaration
+ * D1: ";" terminates each field.  D2: no "type =" prefix.
+ */
 ObjectDecl         ::= "object" Identifier "{" ObjectFieldList "}"
-ObjectFieldList    ::= ObjectField ("," ObjectField)* ","?
-ObjectField        ::= Identifier ":" Type 
-                       ("," ObjectFieldProp)*
-                       ("," "strict" "=" Literal)?
-ObjectFieldProp    ::= "assigned" "=" Identifier
+ObjectFieldList    ::= ObjectField+
+ObjectField        ::= Identifier ":" Type ("," ObjectFieldProp)* ";"
+ObjectFieldProp    ::= "assigned" "=" AssignMode
                      | "required"
+                     | "optional"
                      | "key"
                      | "default" "=" Value
+                     | "strict" "=" Literal
+                     | Constraint
+
+/* Props shared by key fields (D3: constraints are props, not type suffixes) */
+MetaProp           ::= "required"
                      | "optional"
+                     | Constraint
 
-/* Key Map Declaration */
-KeyMapDecl         ::= "keymap" Identifier ":" Identifier "{" 
-                       KeyFieldList "}" 
-                       KeyMapProps*
+/* D3: range/pattern attach as comma-led props in every construct.
+ * The no-comma form `uint8 range(0,120)` is deliberately NOT grammar:
+ * it matched zero sites in either example file.
+ */
+Constraint         ::= "range" "(" NumberLiteral "," NumberLiteral ")"
+                     | "pattern" "=" StringLiteral
 
-KeyFieldList       ::= Identifier ":" Identifier ("," Identifier ":" Identifier)* ","?
+AssignMode         ::= "counter" | "random"
 
-KeyMapProps        ::= "primary"
+/* Key Map Declaration
+ * D6: a keymap relates a key to the object that key is defined for.
+ * Defect 3: this list is KeyMapFieldList, distinct from KeyFieldList.
+ * Defect 8: bodies bind with "->".
+ * Defect 9: trailing props are comma-led and the decl is ";"-terminated.
+ */
+KeyMapDecl         ::= "keymap" Identifier ":" Identifier "{"
+                       KeyMapFieldList "}"
+                       ("," KeyMapProp)* ";"
+KeyMapFieldList    ::= KeyMapField ("," KeyMapField)* ","?
+KeyMapField        ::= Identifier "->" KeyMapTarget
+KeyMapTarget       ::= FieldPath | ObjectRef
+
+KeyMapProp         ::= "primary"
                      | "name" "=" StringLiteral
                      | "cascadeDelete"
 
-/* Type System */
-Type               ::= BasicType | ComplexType | UserType | ConstrainedType
-BasicType          ::= "uint8" | "uint16" | "uint32" | "uint64" 
-                    | "int8" | "int16" | "int32" | "int64"
-                    | "float32" | "float64" 
-                    | "string" | "bool" | "Timestamp"
+/* Instance Declarations — D7.
+ * Binds a name to a populated value of a declared type. This is what
+ * makes SODL a config language rather than a schema-only IDL, and what
+ * gives ObjectLiteral a reachable parent (defects 4, 26).
+ */
+InstanceDecl       ::= TypeName Identifier "=" Value ";"
+TypeName           ::= Identifier | QualifiedType
+
+/* Type System
+ * D4: no anonymous inline object types — a field's type is always named.
+ */
+Type               ::= BasicType | ComplexType | UserType
+BasicType          ::= "uint8" | "uint16" | "uint32" | "uint64"
+                     | "int8" | "int16" | "int32" | "int64"
+                     | "float32" | "float64"
+                     | "string" | "bool"
+                     | "bytes"                    (* D9 *)
+                     | "Timestamp"
 ComplexType        ::= ListType | TLVType
 ListType           ::= "[" Type ";" IntegerLiteral "]"
-TLVType            ::= "tlv" "<" Type ">"
-UserType           ::= Identifier
+TLVType            ::= "tlv" "<" Type ">"         (* D8: any Type, nesting allowed *)
+UserType           ::= Identifier | QualifiedType
 
-/* Enhanced Type Constraints */
-TypeConstraint     ::= "range" "(" NumberLiteral "," NumberLiteral ")" 
-                      | "pattern" "=" StringLiteral
-ConstrainedType    ::= BasicType TypeConstraint
+/* Dotted Identifiers — D5.
+ * Four constructs, four productions. Each is legal only in its own
+ * position and resolves in its own scope; collapsing them would cost
+ * the diagnostics (defect 12).
+ */
+QualifiedType      ::= Identifier "." Identifier          (* Crypto.SHA256Hash — module scope *)
+EnumMember         ::= Identifier "." Identifier          (* UserRole.Guest — enum scope *)
+FieldPath          ::= Identifier ("." Identifier)*       (* deviceInfo.deviceFingerprint — nested field *)
+ObjectRef          ::= Identifier "." Identifier          (* Employee.employeeId — cross-object *)
 
-/* Object Literals */
-ObjectLiteral      ::= "{" ObjectLiteralFieldList "}"
+/* Values — D7: ObjectLiteral and ListLiteral are reachable from Value,
+ * which is what defect 26 required and defect 4 flagged as missing.
+ */
+Value              ::= NumberLiteral
+                     | StringLiteral
+                     | BooleanLiteral
+                     | EnumMember
+                     | Identifier
+                     | ObjectLiteral
+                     | ListLiteral
+
+ObjectLiteral      ::= "{" ObjectLiteralFieldList? "}"
 ObjectLiteralFieldList ::= ObjectLiteralField ("," ObjectLiteralField)* ","?
 ObjectLiteralField ::= Identifier ":" Value
+
+ListLiteral        ::= "[" (Value ("," Value)* ","?)? "]"
 
 /* Basic Tokens */
 IdentList          ::= Identifier ("," Identifier)* ","?
 Identifier         ::= [a-zA-Z_][a-zA-Z0-9_]*
 NumberLiteral      ::= IntegerLiteral | FloatLiteral
-IntegerLiteral     ::= [0-9]+
+IntegerLiteral     ::= DecimalLiteral | HexLiteral        (* Defect 11 *)
+DecimalLiteral     ::= [0-9]+
+HexLiteral         ::= "0x" [0-9a-fA-F]+                  (* Defect 11 *)
 FloatLiteral       ::= [0-9]+ "." [0-9]+
 StringLiteral      ::= '"' [^"]* '"'
 BooleanLiteral     ::= "true" | "false"
-Value              ::= NumberLiteral 
-                     | StringLiteral 
-                     | BooleanLiteral 
-                     | Identifier
 Literal            ::= NumberLiteral | StringLiteral | BooleanLiteral
 
+/* Comments — defect 10. Trivia: legal anywhere between tokens. */
+Comment            ::= "//" [^\n]*
+
+/* ---------------------------------------------------------------------
+ * STATIC CHECKS — required by the language, not expressible in EBNF.
+ *
+ * 1. (D6) Every field referenced by a KeyDecl or KeyMapDecl must carry
+ *    the `key` prop on the target object.
+ * 2. (D6) Every `key`-annotated field must be referenced by at least one
+ *    KeyDecl or KeyMapDecl. No unused key fields.
+ * 3. (D6) A keymap's source key must be declared; its target must be an
+ *    object the key is defined for. (Closes defect 17 — example.sodl's
+ *    UserId and advanced-examples' DepartmentManager/EmployeeDepartment
+ *    referenced keys that never existed.)
+ * 4. (D7) An InstanceDecl's Value must structurally match its TypeName,
+ *    and satisfy every constraint and `required` prop on that type.
+ * 5. (Defect 19) `Timestamp` is a BasicType. Importing a name that
+ *    collides with a BasicType is an error, not shadowing.
+ * ------------------------------------------------------------------ */

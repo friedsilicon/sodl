@@ -1,140 +1,152 @@
-# Structured Object Definition Language (SODL) Specification
+# SODL Specification
 
-## 1. Overview
+Normative. Where this document and `sodl.ebnf` disagree, that is a bug in
+one of them — report it.
 
-### 1.1 Purpose
-The Structured Object Definition Language (SODL) is a Domain-Specific Language (DSL) designed for defining canonical data structures, relationships, and constraints within a system. Its primary goal is to provide a single, highly expressive, and type-safe contract for data models, ensuring data integrity from the point of definition through to persistence.
+- **Syntax:** `sodl.ebnf`
+- **Rationale for the choices below:** `DECISIONS.md`
+- **Introduction and tutorial:** `Primer.md` (non-normative)
 
-SODL models data objects, relationships, and business rules in a declarative manner, making it ideal for systems where data consistency and clear architectural contracts are paramount.
+## 1. Scope
 
-### 1.2 Scope
-This specification covers the syntax and semantics of the SODL language, as defined by the accompanying EBNF grammar. It details how basic types, complex structures, relationships, and constraints are defined and interpreted by the SODL compiler/runtime.
+SODL defines data structures, their relationships, their constraints, and
+their populated values. A `.sodl` file carries schema and data together
+(§7); SODL is a typed configuration language, not a schema-only IDL.
 
-## 2. Syntax (EBNF Grammar)
+## 2. Program structure
 
-The following grammar defines the legal structure of a SODL file.
+    Program ::= ImportStatement* TopLevelItem*
+    TopLevelItem ::= Declaration | InstanceDecl
 
-*(The full EBNF grammar is provided in the `sodl.ebnf` file and is referenced here for completeness.)*
+Imports precede all other items. Declarations and instance declarations may
+interleave.
 
-**Key Grammar Components:**
+## 3. Lexical
 
-*   **Program:** The top-level structure, composed of zero or more `ImportStatement`s followed by zero or more `Declaration`s.
-*   **Declaration:** The primary building blocks of the language, including `EnumDecl`, `UnionDecl`, `StructDecl`, `KeyDecl`, `ObjectDecl`, and `KeyMapDecl`.
+Comments are `//` to end of line, legal anywhere between tokens.
 
-## 3. Semantics and Constructs
+Integer literals are decimal (`42`) or hexadecimal (`0x2A`). Float literals
+require digits on both sides of the point. String literals are
+double-quoted. Boolean literals are `true` and `false`.
 
-### 3.1 Basic Types and Constraints
-SODL supports a rich set of primitive and complex types:
+Identifiers match `[a-zA-Z_][a-zA-Z0-9_]*`.
 
-*   **Basic Types:** Includes standard primitives (`string`, `bool`, `uint8` to `uint64`, `float32`, `float64`) and domain-specific types (`UUID`, `Timestamp`, `Money`, `EmailAddress`, etc.).
-*   **Complex Types:**
-    *   **List (`[Type; IntegerLiteral]`):** Defines a fixed-size array of a specific type.
-    *   **TLV (`tlv<Type>`):** Represents variable-length metadata, useful for extensibility.
-*   **Type Constraints:** Types can be constrained using:
-    *   `range(min, max)`: Enforces numeric boundaries.
-    *   `pattern = "regex"`: Enforces string format validation using regular expressions.
+## 4. Types
 
-### 3.2 Core Declarations
+### 4.1 Basic types
 
-#### A. Enums (`enum`)
-Defines a set of named, discrete constants.
-*   **Syntax:** `enum Identifier { Value1 = N1, Value2 = N2, ... }`
-*   **Semantics:** Values are immutable and typically assigned an integer representation.
+`uint8` `uint16` `uint32` `uint64` `int8` `int16` `int32` `int64`
+`float32` `float64` `string` `bool` `bytes` `Timestamp`
 
-#### B. Unions (`union`)
-Defines a type that can be one of several specified types.
-*   **Syntax:** `union Identifier { TypeA, TypeB, ... }`
-*   **Semantics:** The instance of this type must conform to *at least one* of the listed types.
+`bytes` is a variable-length byte array. For fixed-length runs use
+`[uint8; N]`.
 
-#### C. Structs (`struct`)
-Used for grouping related, fixed-schema data fields.
-*   **Syntax:** `struct Identifier { field1: Type, field2: Type, ... }`
-*   **Semantics:** Defines a composite type. Fields can be marked as `strict` to enforce a literal value.
+Importing a name that collides with a basic type is an error. Basic types
+are not shadowable.
 
-#### D. Objects (`object`)
-The primary entity definition. Objects are the most feature-rich construct, allowing for complex metadata and lifecycle management.
-*   **Syntax:** `object Identifier { field1: Type (..., prop1, prop2), ... }`
-*   **Semantics:**
-    *   **`required`:** The field must be present for a valid object instance.
-    *   **`key`:** The field contributes to the object's unique key.
-    *   **`assigned`:** Specifies how the value is generated (e.g., `assigned = counter` for auto-incrementing IDs).
-    *   **`optional`:** The field may be omitted.
+### 4.2 Complex types
 
-#### E. Keys (`key`)
-Defines a unique identifier structure for an object.
-*   **Syntax:** `key Identifier { field1: Type (..., props), ... }`
-*   **Semantics:** The combination of values for the fields marked as `key` must be unique across all instances of this key.
+- **List:** `[T; N]` — fixed-length, N elements of type T. Nestable:
+  `[[string; 2]; 5]`.
+- **TLV:** `tlv<T>` — tag, byte length, value. T is *any* type, including
+  structs and further TLVs. The value is encoded per T's own rules.
 
-#### F. KeyMaps (`keymap`)
-Defines explicit, named relationships between two key structures.
-*   **Syntax:** `keymap SourceKey:TargetKey { sourceField -> targetField }, [primary], [name = "Name"], [cascadeDelete]`
-*   **Semantics:** Establishes a foreign-key-like relationship. The `cascadeDelete` property dictates that deleting an instance in the source keymap should automatically delete related instances in the target keymap.
+### 4.3 User types
 
-## 4. Usage Examples
+A struct, object, key, union, or enum name. May be qualified by an import
+alias: `Crypto.SHA256Hash`.
 
-### 4.1 Example: User Session Management (From `advanced-examples.sodl`)
-This example demonstrates the combination of multiple advanced features:
+Field types are always named. There are no anonymous inline object types;
+a nested structure is declared as a struct and referenced by name.
 
-```sodl
-// Defines a complex key for session lookup
-key SessionKey {
-    sessionId: type = Crypto.SHA256Hash,
-    deviceFingerprint: type = string, pattern = "^[a-f0-9]{64}$",
-    ipAddress: type = IPAddress
-}
+## 5. Fields
 
-// Defines the main object, using the key and complex types
-object UserSession {
-    sessionId: type = Crypto.SHA256Hash, assigned = random, required, key,
-    userId: type = UUID, required, key,
-    deviceInfo: {
-        userAgent: type = string, required,
-        ipAddress: type = IPAddress, required,
-        geoLocation: type = GeoLocation, optional,
-        deviceFingerprint: type = string, pattern = "^[a-f0-9]{64}$"
-    },
-    authFactors: type = [AuthenticationFactor; 3], // Array of Union
-    securityLevel: type = uint8, range(1, 5),
-    lastActivity: type = Timestamp,
-    expiresAt: type = Timestamp,
-    metadata: type = tlv<string>
-}
+Every field terminates with `;`. Props within a field are separated by `,`:
 
-// Defines the relationship between the two keys
-keymap SessionKey:UserSession {
-    sessionId -> sessionId,
-    deviceFingerprint -> deviceInfo.deviceFingerprint,
-    ipAddress -> deviceInfo.ipAddress
-}, primary, name = "SessionLookup", cascadeDelete;
-```
+    fieldName: Type, prop, prop;
 
-### 4.2 Example: Data Flow (SODL vs. Parquet)
-SODL is best used at the **Application/Service Layer** to define the *intended* data structure and validation rules. This structure can then be mapped and serialized into a physical storage format like Parquet for analytical processing.
+`;` ends a field. `,` separates props. The two never substitute.
 
-**SODL (Definition Layer):**
-```sodl
-object AnalyticsEvent {
-    eventId: type = UUID, assigned = counter, required, key;
-    timestamp: type = Timestamp, required;
-    userId: type = UUID, required;
-    eventType: type = string, required;
-    properties: type = tlv<string>;
-}
-```
+### 5.1 Props
 
-**Parquet (Storage Layer):**
-*(Schema definition would be handled by a separate tool/process, but the data structure mirrors the SODL intent.)*
+| Prop | Meaning |
+|---|---|
+| `required` | The field must be present. |
+| `optional` | The field may be absent. |
+| `key` | The field participates in this object's identity (§6). Implies `required`. |
+| `assigned = counter \| random` | The value is generated, not supplied. |
+| `default = Value` | Value used when the field is absent. |
+| `strict = Literal` | The field must equal this literal exactly. |
+| `range(min, max)` | Numeric bounds, inclusive. |
+| `pattern = "regex"` | String must match. |
 
-## 5. Comparison Summary
+Constraints (`range`, `pattern`) are props. They are not part of the type:
+`uint8, range(0, 120)` — never `uint8 range(0, 120)`. A constraint does not
+travel with a type through an alias.
 
-| Feature | SODL | Protocol Buffers (protobuf) | JSON Schema |
-| :--- | :--- | :--- | :--- |
-| **Primary Focus** | Data Model Definition & Relationships | Cross-Language Serialization | General JSON Validation |
-| **Relationship Modeling** | **First-class KeyMaps** | Message References | Limited (via `allOf`/`oneOf`) |
-| **Validation** | Range, Pattern, Type-Specific | Basic Types | Extensive (but verbose) |
-| **Syntax** | Declarative, Object-Oriented | Protocol-based | JSON-based |
-| **Best For** | Complex, highly constrained, interconnected data services. | Efficient, language-agnostic data exchange. | Validating arbitrary JSON payloads. |
+## 6. Identity: keys and keymaps
 
-## 6. Conclusion
+Keys and keymaps are how an object is addressed. An object may be
+addressable in several ways; each way is a key.
 
-SODL provides a powerful, robust, and highly expressive framework for data modeling. Its combination of strong typing, explicit relationship management via `KeyMaps`, and built-in validation constraints makes it superior to general-purpose schema languages for defining the core data contracts of a complex application.
+- A **`key` field prop** marks a field as participating in identity.
+  Multiple `key` props on one object form a **composite key**.
+- A **`key` declaration** names an access path and lists the fields it
+  addresses by.
+- A **`keymap`** binds a key declaration to the object that key addresses,
+  field by field, with `->`.
+
+A keymap marked `primary` is the path through which the object is
+**created**. Every key — primary and secondary — is a path by which it can
+be **retrieved**.
+
+### 6.1 Rules
+
+These are checked statically. They are not expressible in EBNF.
+
+1. **`key` implies `required`.** Writing both is an error. Identity cannot
+   depend on a field that may be absent.
+
+2. **Every `key` field must be named by at least one key declaration and
+   used by at least one keymap.** There is no implicit primary key: an
+   object's primary key is declared and bound like any other. A `key` field
+   that no declaration reaches is an error, and so is the converse — a key
+   or keymap referencing a field not annotated `key`.
+
+3. **Every object must declare at least one `key` field.** An object with
+   no identity can be neither created nor retrieved.
+
+A keymap's target may be reached by `FieldPath` into a nested struct
+(`deviceFingerprint -> deviceInfo.deviceFingerprint`). The nested field is
+the key field; the enclosing struct is not.
+
+`cascadeDelete` on a keymap: deleting the source deletes what it addresses.
+
+## 7. Instance data
+
+An instance declaration binds a name to a populated value:
+
+    TypeName instanceName = Value;
+
+    Endpoint local = {
+        name: "local",
+        url: "http://127.0.0.1:8080"
+    };
+
+The value is checked against the named type: structurally, and against
+every constraint and `required` prop. Object literals nest; list literals
+use `[a, b, c]`.
+
+## 8. Dotted names
+
+Four constructs, distinguished by position and resolved in different
+scopes:
+
+| Form | Example | Scope |
+|---|---|---|
+| Qualified type | `Crypto.SHA256Hash` | import alias |
+| Enum member | `UserRole.Guest` | enum |
+| Field path | `deviceInfo.deviceFingerprint` | nested field, same object |
+| Object ref | `Employee.employeeId` | another object |
+
+Each is legal only where its production admits it.
