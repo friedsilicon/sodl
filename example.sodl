@@ -1,7 +1,13 @@
-// DataModel (DML) Comprehensive Example
+// SODL Comprehensive Example
+//
+// Demonstrates the core constructs: enums, unions, structs, keys,
+// objects, keymaps, and instance data.
 
-// Import common types
-import { UUID, Timestamp } from "common_types"
+// Import common types.
+// Timestamp is NOT imported — it is a BasicType (see DECISIONS.md, and
+// static check 5: importing a name that collides with a BasicType is an
+// error, not shadowing).
+import { UUID } from "common_types"
 
 // Enum for user roles
 enum UserRole {
@@ -21,37 +27,42 @@ enum AccountStatus {
 
 // Union type for contact methods
 union ContactMethod {
-    Email, 
-    Phone, 
+    Email,
+    Phone,
     Address
 }
 
-// Struct for detailed address
+// Struct for detailed address.
+// D1: every field terminates with ';', in structs as in objects.
 struct Address {
-    street: string,
-    city: string,
-    state: string,
-    zipCode: string,
-    country: string
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
 }
 
-// Key for User Profile
+// Key for User Profile.
+// D6: every field named here carries the `key` prop on UserAccount, and
+// every `key`-annotated field on UserAccount is reachable from some key
+// or keymap. Both directions are checked.
 key UserProfile {
-    userId: UUID,
-    username: string,
-    email: string
+    userId: UUID;
+    username: string;
+    email: string;
 }
 
 // Key for Authentication
 key AuthKey {
-    loginToken: string
+    loginToken: string;
 }
 
-// Complex User Account Object
+// Complex User Account Object.
+// D2: no `type =` prefix. D1: ';' terminates fields, ',' separates props.
 object UserAccount {
-    userId: UUID, assigned = counter, required, key;
-    username: string, required, key;
-    email: string, required;
+    userId: UUID, assigned = counter, key;
+    username: string, key;
+    email: string, key;
     profile: UserProfile;
     role: UserRole, default = UserRole.Guest;
     status: AccountStatus, default = AccountStatus.Pending;
@@ -62,15 +73,29 @@ object UserAccount {
     twoFactorEnabled: bool, default = false;
 }
 
-// Object for User Preferences
+// Object for User Preferences.
+// D6 rule 2: userId is `key`, so it needs both a key declaration naming
+// it and a keymap using it — see PreferencesKey below.
 object UserPreferences {
-    userId: UUID, required, key;
+    userId: UUID, key;
     theme: string, default = "light";
     notifications: bool, default = true;
     language: string, default = "en";
 }
 
-// Key Maps for User Account
+// Primary key for UserPreferences. D6: there is no implicit primary key;
+// the access path an object is created through must be named.
+key PreferencesKey {
+    userId: UUID;
+}
+
+keymap PreferencesKey:UserPreferences {
+    userId -> userId
+}, primary, name = "PreferencesLookup";
+
+// Key Maps for User Account.
+// D6: a keymap relates a key to the object that key is defined for.
+// Defect 8: bodies bind with '->'. Defect 9: props are comma-led, ';'-terminated.
 keymap UserProfile:UserAccount {
     username -> username,
     email -> email
@@ -80,31 +105,50 @@ keymap AuthKey:UserAccount {
     loginToken -> userId
 }, name = "AuthToAccount";
 
+// Defect 17: the original file had `keymap UserId:UserAccount`, but no
+// `key UserId` was ever declared. Declared here so the reference resolves.
+key UserId {
+    userId: UUID;
+}
+
 keymap UserId:UserAccount {
     userId -> userId
 }, primary, name = "UserIdToAccount";
 
 // Organization Key and Object
 key OrganizationKey {
-    orgId: UUID,
-    orgName: string
+    orgId: UUID;
+    orgName: string;
 }
 
 object Organization {
-    orgId: UUID, assigned = counter, required, key;
-    orgName: string, required;
+    orgId: UUID, assigned = counter, key;
+    orgName: string, key;
     domain: string;
     foundedDate: Timestamp;
     status: string;
 }
 
-// Membership Object
+// Membership Object.
+// A composite key: userId and orgId together identify a membership.
+// D6: composite keys come from multiple `key` field props on one object.
 object OrganizationMembership {
-    userId: UUID, required, key;
-    orgId: UUID, required, key;
+    userId: UUID, key;
+    orgId: UUID, key;
     role: UserRole;
     joinDate: Timestamp;
 }
+
+// The composite primary key, named so membership can be created through it.
+key MembershipKey {
+    userId: UUID;
+    orgId: UUID;
+}
+
+keymap MembershipKey:OrganizationMembership {
+    userId -> userId,
+    orgId -> orgId
+}, primary, name = "MembershipLookup";
 
 // Key Maps for Organization
 keymap OrganizationKey:Organization {
@@ -118,3 +162,31 @@ keymap OrganizationKey:OrganizationMembership {
 keymap UserProfile:OrganizationMembership {
     userId -> userId
 }, name = "UserToMembership";
+
+// ---------------------------------------------------------------------
+// Instance data — D7.
+// A .sodl file carries schema AND populated values. These are typed:
+// each literal is checked against its declaration, including required
+// props and defaults.
+
+Organization acme = {
+    orgId: "018f3a2b-0000-7000-8000-000000000001",
+    orgName: "Acme Corporation",
+    domain: "acme.example",
+    status: "active"
+};
+
+UserAccount rootUser = {
+    userId: "018f3a2b-0000-7000-8000-000000000002",
+    username: "root",
+    email: "root@acme.example",
+    role: UserRole.Admin,
+    status: AccountStatus.Active,
+    twoFactorEnabled: true
+};
+
+UserPreferences rootPrefs = {
+    userId: "018f3a2b-0000-7000-8000-000000000002",
+    theme: "dark",
+    language: "en"
+};

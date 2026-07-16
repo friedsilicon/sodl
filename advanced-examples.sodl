@@ -1,12 +1,17 @@
 // Advanced SODL Examples
-// This file demonstrates complex features and patterns in SODL
+//
+// Demonstrates the features the basic example omits: hex enum values,
+// constraints, qualified types, nested field paths, cross-object refs,
+// TLV over compound types, `bytes`, and structured instance data.
 
-// Import common types and utilities
-import { UUID, Timestamp, Money, GeoLocation } from "common_types"
+// Import common types and utilities.
+// Timestamp is NOT imported — it is a BasicType (static check 5).
+import { UUID, Money, GeoLocation } from "common_types"
 import { EmailAddress, PhoneNumber, IPAddress } from "validated_types"
 import { * } from "crypto_types" as Crypto
 
-// Advanced enum with explicit values and documentation
+// Advanced enum with explicit hex values (defect 11).
+// Bit flags, so each value is a distinct bit.
 enum TransactionStatus {
     Pending = 0x01,    // Transaction initiated
     Verified = 0x02,   // Transaction verified but not processed
@@ -25,73 +30,114 @@ union AuthenticationFactor {
     RecoveryCode
 }
 
-// Struct with nested types and constraints
+// D4: named structs only — no anonymous inline object types.
+// The original nested this brace-block directly inside
+// SecurityConfiguration; it is lifted to a named struct.
+struct PasswordPolicy {
+    minLength: uint8, range(8, 128);
+    requireSpecialChars: bool;
+    requireNumbers: bool;
+    requireUppercase: bool;
+    passwordHistory: uint8, range(0, 24);
+}
+
+// Struct with nested types and constraints.
+// D3: range/pattern are comma-led props, never type suffixes.
 struct SecurityConfiguration {
-    maxLoginAttempts: uint8, range(3, 10),
-    passwordPolicy: {
-        minLength: uint8, range(8, 128),
-        requireSpecialChars: bool,
-        requireNumbers: bool,
-        requireUppercase: bool,
-        passwordHistory: uint8, range(0, 24)
-    },
-    sessionTimeout: uint32, range(300, 86400)  // 5 minutes to 24 hours in seconds
+    maxLoginAttempts: uint8, range(3, 10);
+    passwordPolicy: PasswordPolicy;
+    sessionTimeout: uint32, range(300, 86400);  // 5 minutes to 24 hours
 }
 
-// Key with complex validation
+// D4: lifted from the anonymous `deviceInfo: { ... }` in UserSession.
+struct DeviceInfo {
+    userAgent: string, required;
+    ipAddress: IPAddress, required;
+    geoLocation: GeoLocation, optional;
+    deviceFingerprint: string, pattern = "^[a-f0-9]{64}$";
+}
+
+// Key with complex validation.
+// D5: Crypto.SHA256Hash is a QualifiedType — resolved in module scope.
 key SessionKey {
-    sessionId: Crypto.SHA256Hash,
-    deviceFingerprint: string, pattern = "^[a-f0-9]{64}$",
-    ipAddress: IPAddress
+    sessionId: Crypto.SHA256Hash;
+    deviceFingerprint: string, pattern = "^[a-f0-9]{64}$";
+    ipAddress: IPAddress;
 }
 
-// Object with advanced type constraints and relationships
+// Object with advanced type constraints and relationships.
+// D6: every `key` field here is named by a key declaration AND used by a
+// keymap. deviceInfo is deliberately NOT `key` — SessionLookup reaches
+// into it by FieldPath, which addresses the nested field, not the struct.
 object UserSession {
-    sessionId: Crypto.SHA256Hash, assigned = random, required, key,
-    userId: UUID, required, key,
-    deviceInfo: {
-        userAgent: string, required,
-        ipAddress: IPAddress, required,
-        geoLocation: GeoLocation, optional,
-        deviceFingerprint: string, pattern = "^[a-f0-9]{64}$"
-    },
-    authFactors: [AuthenticationFactor; 3],
-    securityLevel: uint8, range(1, 5),
-    lastActivity: Timestamp,
-    expiresAt: Timestamp,
-    metadata: tlv<string>  // Variable length metadata
+    sessionId: Crypto.SHA256Hash, assigned = random, key;
+    userId: UUID, key;
+    deviceInfo: DeviceInfo;
+    authFactors: [AuthenticationFactor; 3];
+    securityLevel: uint8, range(1, 5);
+    lastActivity: Timestamp;
+    expiresAt: Timestamp;
+    metadata: tlv<string>;  // Variable length metadata
+}
+
+// Secondary access path: retrieve a session by the user it belongs to.
+key UserSessionsKey {
+    userId: UUID;
+}
+
+keymap UserSessionsKey:UserSession {
+    userId -> userId
+}, name = "SessionsByUser";
+
+// D4: lifted from the anonymous `customer: { ... }` in ECommerceOrder.
+struct OrderCustomer {
+    userId: UUID, required;
+    email: EmailAddress, required;
+    phone: PhoneNumber, optional;
+    shippingAddresses: [Address; 5];
+    preferredAddress: uint8, range(0, 4);
+}
+
+// D4: lifted from the anonymous element type of `items: [{ ... }; 50]`.
+struct OrderItem {
+    productId: UUID;
+    quantity: uint16, range(1, 1000);
+    price: Money;
+    discounts: [string; 5];
+    metadata: tlv<string>;
+}
+
+// D4: lifted from the anonymous `payment: { ... }` in ECommerceOrder.
+struct OrderPayment {
+    method: string;
+    status: TransactionStatus;
+    amount: Money;
+    currency: string, pattern = "^[A-Z]{3}$";
+    processorRef: string;
 }
 
 // Complex object with nested arrays and validation
 object ECommerceOrder {
-    orderId: UUID, assigned = counter, required, key,
-    customer: {
-        userId: UUID, required,
-        email: EmailAddress, required,
-        phone: PhoneNumber, optional,
-        shippingAddresses: [Address; 5],
-        preferredAddress: uint8, range(0, 4)
-    },
-    items: [{
-        productId: UUID,
-        quantity: uint16, range(1, 1000),
-        price: Money,
-        discounts: [string; 5],
-        metadata: tlv<string>
-    }; 50],
-    payment: {
-        method: string,
-        status: TransactionStatus,
-        amount: Money,
-        currency: string, pattern = "^[A-Z]{3}$",
-        processorRef: string
-    },
-    status: string,
-    createdAt: Timestamp,
-    updatedAt: Timestamp
+    orderId: UUID, assigned = counter, key;
+    customer: OrderCustomer;
+    items: [OrderItem; 50];
+    payment: OrderPayment;
+    status: string;
+    createdAt: Timestamp;
+    updatedAt: Timestamp;
 }
 
-// Advanced keymap with multiple relationships and cascade delete
+key OrderKey {
+    orderId: UUID;
+}
+
+keymap OrderKey:ECommerceOrder {
+    orderId -> orderId
+}, primary, name = "OrderLookup";
+
+// Advanced keymap with multiple relationships and cascade delete.
+// D5: deviceInfo.deviceFingerprint is a FieldPath — a nested field
+// within this object, distinct from a cross-object ObjectRef.
 keymap SessionKey:UserSession {
     sessionId -> sessionId,
     deviceFingerprint -> deviceInfo.deviceFingerprint,
@@ -100,29 +146,53 @@ keymap SessionKey:UserSession {
 
 // Demonstration of circular references and complex relationships
 object Department {
-    deptId: UUID, assigned = counter, required, key,
-    name: string, required,
-    managerId: UUID, optional,  // References an Employee
-    location: GeoLocation,
-    budget: Money,
-    employees: [UUID; 100]  // Array of Employee IDs
+    deptId: UUID, assigned = counter, key;
+    name: string, required;
+    managerId: UUID, optional, key;   // References an Employee
+    location: GeoLocation;
+    budget: Money;
+    employees: [UUID; 100];           // Array of Employee IDs
 }
 
 object Employee {
-    employeeId: UUID, assigned = counter, required, key,
-    departmentId: UUID, required,  // References a Department
-    supervisor: UUID, optional,     // References another Employee
-    subordinates: [UUID; 20],      // Array of Employee IDs
-    permissions: [string; 50],
-    accessLevel: uint8, range(1, 10),
-    hireDate: Timestamp,
-    status: string, pattern = "^(Active|OnLeave|Terminated)$"
+    employeeId: UUID, assigned = counter, key;
+    departmentId: UUID, key;  // References a Department
+    supervisor: UUID, optional;         // References another Employee
+    subordinates: [UUID; 20];           // Array of Employee IDs
+    permissions: [string; 50];
+    accessLevel: uint8, range(1, 10);
+    hireDate: Timestamp;
+    status: string, pattern = "^(Active|OnLeave|Terminated)$";
 }
 
-// Complex keymaps for circular references
+// Complex keymaps for circular references.
+// Defect 17: the original referenced `DepartmentManager` and
+// `EmployeeDepartment` as keys, but neither was ever declared. Declared
+// here so the references resolve.
+// D5: Employee.employeeId is an ObjectRef — cross-object, resolved in
+// object scope, distinct from a same-object FieldPath.
+// Primary key for Department.
+key DepartmentKey {
+    deptId: UUID;
+}
+
+keymap DepartmentKey:Department {
+    deptId -> deptId
+}, primary, name = "DepartmentLookup";
+
+// Secondary access path: find a department by its manager.
+key DepartmentManager {
+    managerId: UUID;
+}
+
 keymap DepartmentManager:Department {
     managerId -> Employee.employeeId
 }, name = "DepartmentManagement";
+
+key EmployeeDepartment {
+    departmentId: UUID;
+    employeeId: UUID;
+}
 
 keymap EmployeeDepartment:Employee {
     departmentId -> Department.deptId,
@@ -131,22 +201,95 @@ keymap EmployeeDepartment:Employee {
 
 // Demonstration of type inheritance and composition
 struct BaseAuditInfo {
-    createdAt: Timestamp,
-    createdBy: UUID,
-    updatedAt: Timestamp,
-    updatedBy: UUID,
-    version: uint32
+    createdAt: Timestamp;
+    createdBy: UUID;
+    updatedAt: Timestamp;
+    updatedBy: UUID;
+    version: uint32;
+}
+
+// D4: lifted from the anonymous element type of `changes: [{ ... }; 100]`.
+struct AuditChange {
+    field: string;
+    oldValue: string;
+    newValue: string;
+    timestamp: Timestamp;
+    changedBy: UUID;
 }
 
 object AuditedEntity {
-    entityId: UUID, assigned = counter, required, key,
-    entityType: string,
-    auditInfo: BaseAuditInfo,
-    changes: [{
-        field: string,
-        oldValue: string,
-        newValue: string,
-        timestamp: Timestamp,
-        changedBy: UUID
-    }; 100]
+    entityId: UUID, assigned = counter, key;
+    entityType: string;
+    auditInfo: BaseAuditInfo;
+    changes: [AuditChange; 100];
 }
+
+key AuditedEntityKey {
+    entityId: UUID;
+}
+
+keymap AuditedEntityKey:AuditedEntity {
+    entityId -> entityId
+}, primary, name = "AuditedEntityLookup";
+
+// ---------------------------------------------------------------------
+// D9 — the `bytes` primitive.
+// Variable-length binary: certs, keys, hashes, cache bodies. Distinct
+// from [uint8; N], which is fixed-length.
+
+struct TlsIdentity {
+    certificate: bytes, required;      // variable length — DER cert
+    privateKey: bytes, required;       // variable length
+    fingerprint: [uint8; 32];          // fixed length — SHA-256
+}
+
+object CacheEntry {
+    cacheKey: Crypto.SHA256Hash, key;
+    body: bytes;                       // arbitrary payload
+    contentType: string;
+    storedAt: Timestamp;
+    // D8: tlv accepts any Type, not just primitives. T = tag,
+    // L = byte length, V = inner encoding; nesting is allowed.
+    headers: tlv<AuditChange>;
+    trailers: tlv<tlv<string>>;        // nested TLV
+}
+
+key CacheEntryKey {
+    cacheKey: Crypto.SHA256Hash;
+}
+
+keymap CacheEntryKey:CacheEntry {
+    cacheKey -> cacheKey
+}, primary, name = "CacheLookup";
+
+// ---------------------------------------------------------------------
+// Instance data — D7.
+// Structured literals: nested objects and lists, checked against their
+// declarations.
+
+PasswordPolicy strictPolicy = {
+    minLength: 16,
+    requireSpecialChars: true,
+    requireNumbers: true,
+    requireUppercase: true,
+    passwordHistory: 12
+};
+
+SecurityConfiguration productionSecurity = {
+    maxLoginAttempts: 5,
+    passwordPolicy: {
+        minLength: 16,
+        requireSpecialChars: true,
+        requireNumbers: true,
+        requireUppercase: true,
+        passwordHistory: 12
+    },
+    sessionTimeout: 3600
+};
+
+OrderItem sampleItem = {
+    productId: "018f3a2b-0000-7000-8000-00000000000a",
+    quantity: 2,
+    price: "49.99",
+    discounts: ["LAUNCH10", "BUNDLE5"]
+};
