@@ -1,24 +1,32 @@
-# Combine all the updates into a single full version of the EBNF spec file and create a descriptive file with examples.
-
-# Full content combining the original file and all updates.
-final_spec_content = """
-/* DataModel Language (DML) Complete EBNF */
+/* SODL — Structured Object Definition Language
+ * Complete EBNF grammar.
+ *
+ * STATUS: partially reconciled against sodl-grammar-audit.md.
+ * Applied: defects 1, 2, 3, 8, 9, 10, 11, 14 (the no-input fixes).
+ * Still OPEN — see the OPEN DECISIONS block at the foot of this file.
+ * This grammar does NOT yet parse example.sodl; the productions that
+ * block it (ObjectField, ObjectFieldList, MetaProp, FieldPath) are
+ * gated on decisions D1-D5 and are left as-is rather than guessed.
+ */
 
 /* Top-Level Program Structure */
 Program             ::= ImportStatement* Declaration*
 
-/* Import Statement */
+/* Import Statement
+ * Defect 14: "as" binds after the module string, and the wildcard is
+ * braced — `import { * } from "crypto_types" as Crypto`.
+ */
 ImportStatement     ::= "import" ImportTarget "from" StringLiteral
-ImportTarget        ::= "{" IdentList "}"          (* Selective imports *)
-                        | "*"                      (* Wildcard import *)
-                        | "{" IdentList "}" "as" Identifier (* Selective imports with aliasing *)
+                        ("as" Identifier)?
+ImportTarget        ::= "{" IdentList "}"      (* Selective imports *)
+                      | "{" "*" "}"            (* Wildcard import *)
 
 /* Declarations */
-Declaration         ::= EnumDecl 
-                      | UnionDecl 
-                      | StructDecl 
-                      | KeyDecl 
-                      | ObjectDecl 
+Declaration         ::= EnumDecl
+                      | UnionDecl
+                      | StructDecl
+                      | KeyDecl
+                      | ObjectDecl
                       | KeyMapDecl
 
 /* Enum Declaration */
@@ -32,7 +40,7 @@ UnionDecl          ::= "union" Identifier "{" IdentList "}"
 /* Struct Declaration */
 StructDecl         ::= "struct" Identifier "{" StructFieldList "}"
 StructFieldList    ::= StructField ("," StructField)* ","?
-StructField        ::= Identifier ":" Type 
+StructField        ::= Identifier ":" Type
                        ("," "strict" "=" Literal)?
 
 /* Key Declaration */
@@ -44,7 +52,7 @@ KeyFieldProps      ::= "type" "=" Type ("," MetaProp)*
 /* Object Declaration */
 ObjectDecl         ::= "object" Identifier "{" ObjectFieldList "}"
 ObjectFieldList    ::= ObjectField ("," ObjectField)* ","?
-ObjectField        ::= Identifier ":" Type 
+ObjectField        ::= Identifier ":" Type
                        ("," ObjectFieldProp)*
                        ("," "strict" "=" Literal)?
 ObjectFieldProp    ::= "assigned" "=" Identifier
@@ -53,12 +61,20 @@ ObjectFieldProp    ::= "assigned" "=" Identifier
                      | "default" "=" Value
                      | "optional"
 
-/* Key Map Declaration */
-KeyMapDecl         ::= "keymap" Identifier ":" Identifier "{" 
-                       KeyFieldList "}" 
-                       KeyMapProps*
-
-KeyFieldList       ::= Identifier ":" Identifier ("," Identifier ":" Identifier)* ","?
+/* Key Map Declaration
+ * Defect 3: the second KeyFieldList is renamed KeyMapFieldList; the two
+ *   right-hand sides were incompatible and any generator errors on the
+ *   redefinition.
+ * Defect 8: keymap bodies bind source to target with "->", not ":".
+ * Defect 9: trailing props are comma-led, comma-separated, and the whole
+ *   declaration is semicolon-terminated —
+ *   `}, primary, name = "ProfileToAccount";`
+ */
+KeyMapDecl         ::= "keymap" Identifier ":" Identifier "{"
+                       KeyMapFieldList "}"
+                       ("," KeyMapProps)* ";"
+KeyMapFieldList    ::= KeyMapField ("," KeyMapField)* ","?
+KeyMapField        ::= Identifier "->" FieldPath
 
 KeyMapProps        ::= "primary"
                      | "name" "=" StringLiteral
@@ -66,9 +82,9 @@ KeyMapProps        ::= "primary"
 
 /* Type System */
 Type               ::= BasicType | ComplexType | UserType | ConstrainedType
-BasicType          ::= "uint8" | "uint16" | "uint32" | "uint64" 
+BasicType          ::= "uint8" | "uint16" | "uint32" | "uint64"
                     | "int8" | "int16" | "int32" | "int64"
-                    | "float32" | "float64" 
+                    | "float32" | "float64"
                     | "string" | "bool" | "Timestamp"
 ComplexType        ::= ListType | TLVType
 ListType           ::= "[" Type ";" IntegerLiteral "]"
@@ -76,11 +92,15 @@ TLVType            ::= "tlv" "<" Type ">"
 UserType           ::= Identifier
 
 /* Enhanced Type Constraints */
-TypeConstraint     ::= "range" "(" NumberLiteral "," NumberLiteral ")" 
+TypeConstraint     ::= "range" "(" NumberLiteral "," NumberLiteral ")"
                       | "pattern" "=" StringLiteral
 ConstrainedType    ::= BasicType TypeConstraint
 
-/* Object Literals */
+/* Object Literals
+ * Defect 4: these three productions are referenced by nothing. Whether
+ * they get wired into Value or deleted outright is decision D7. Retained
+ * unmodified pending that call — do not treat as reachable.
+ */
 ObjectLiteral      ::= "{" ObjectLiteralFieldList "}"
 ObjectLiteralFieldList ::= ObjectLiteralField ("," ObjectLiteralField)* ","?
 ObjectLiteralField ::= Identifier ":" Value
@@ -89,13 +109,54 @@ ObjectLiteralField ::= Identifier ":" Value
 IdentList          ::= Identifier ("," Identifier)* ","?
 Identifier         ::= [a-zA-Z_][a-zA-Z0-9_]*
 NumberLiteral      ::= IntegerLiteral | FloatLiteral
-IntegerLiteral     ::= [0-9]+
+IntegerLiteral     ::= DecimalLiteral | HexLiteral        (* Defect 11 *)
+DecimalLiteral     ::= [0-9]+
+HexLiteral         ::= "0x" [0-9a-fA-F]+                  (* Defect 11 *)
 FloatLiteral       ::= [0-9]+ "." [0-9]+
 StringLiteral      ::= '"' [^"]* '"'
 BooleanLiteral     ::= "true" | "false"
-Value              ::= NumberLiteral 
-                     | StringLiteral 
-                     | BooleanLiteral 
+Value              ::= NumberLiteral
+                     | StringLiteral
+                     | BooleanLiteral
                      | Identifier
 Literal            ::= NumberLiteral | StringLiteral | BooleanLiteral
 
+/* Comments — defect 10. Both example files use these on nearly every
+ * line. Trivia: permitted anywhere between tokens, not a Declaration.
+ */
+Comment            ::= "//" [^\n]*
+
+/* ---------------------------------------------------------------------
+ * OPEN DECISIONS — productions above are knowingly unresolved.
+ * Nothing here is a guess; each awaits an explicit call.
+ *
+ * D1  Object field terminator: ObjectFieldList uses "," (grammar's
+ *     original). README + example.sodl use ";". Unresolved.
+ * D2  `type =` prefix: ObjectField above omits it; every example writes
+ *     `userId: type = UUID`. KeyFieldProps already has it — the grammar
+ *     contradicts itself about one construct (defects 6, 27).
+ * D3  Constraints: ConstrainedType makes range/pattern part of the TYPE
+ *     (`uint8 range(0,120)`). Every example writes them as comma-led
+ *     field PROPS. Both cannot be true (defect 5). MetaProp is referenced
+ *     by KeyFieldProps and never defined — its definition falls out of
+ *     this call (defect 15).
+ * D4  Anonymous inline object types — used 5x in advanced-examples,
+ *     absent here (defect 13). Interacts with D7: instance literals
+ *     introduce the recursive brace production anyway.
+ * D5  Dotted identifiers — FieldPath above is a forward reference with
+ *     no definition, deliberately. The examples use dots for four
+ *     distinct purposes (qualified type / enum member / nested field
+ *     path / cross-object ref); whether that is one production or four
+ *     is undecided (defect 12).
+ * D6a Named `key` declarations — kept above, pending confirmation.
+ * D6b `keymap` — kept above, pending confirmation.
+ * D7  Instance data — governs ObjectLiteral's fate (defects 4, 26).
+ * D8  tlv<struct> — TLVType admits any Type today; examples show only
+ *     tlv<string> (defect 28).
+ * D9  `bytes` primitive — absent from BasicType (defect 29).
+ *
+ * Queued example fixes, deferred until D1-D3 settle (they rewrite the
+ * same lines): defect 17 (keymaps referencing undeclared keys UserId,
+ * DepartmentManager, EmployeeDepartment) and defect 19 (Timestamp is
+ * both a BasicType and an import from common_types).
+ * ------------------------------------------------------------------ */
