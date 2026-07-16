@@ -31,6 +31,7 @@ Endpoint local = {
 | `SODL_Specification.md` | The spec. Normative. |
 | `sodl.ebnf` | Grammar. Normative. |
 | `DECISIONS.md` | Why the language is shaped this way. |
+| `TODO.md` | Known gaps and bugs. |
 | `Primer.md` | Introduction, by example. Non-normative. |
 | `example.sodl` | Core constructs. |
 | `advanced-examples.sodl` | Constraints, TLV, `bytes`, qualified names, instance data. |
@@ -54,3 +55,5 @@ keep the examples honest. A real front end would check these on the AST.
 The grammar and examples were reconciled against a full audit; every defect
 it found is either fixed or recorded as a decision in `DECISIONS.md`. The
 language is specified but not implemented — no parser, no code generation.
+
+Known gaps, including bugs found after that pass, are in `TODO.md`.
