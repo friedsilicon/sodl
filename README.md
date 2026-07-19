@@ -31,11 +31,13 @@ Endpoint local = {
 | `SODL_Specification.md` | The spec. Normative. |
 | `sodl.ebnf` | Grammar. Normative. |
 | `DECISIONS.md` | Why the language is shaped this way. |
+| `PROPOSALS.md` | Constructs under consideration. Non-normative. |
 | `TODO.md` | Known gaps and bugs. |
 | `Primer.md` | Introduction, by example. Non-normative. |
 | `example.sodl` | Core constructs. |
 | `advanced-examples.sodl` | Constraints, TLV, `bytes`, qualified names, instance data. |
 | `check-sodl.py` | Static checks the grammar cannot express. |
+| `CLAUDE.md` | Working conventions: which files are normative, what a language change must touch. |
 
 ## Tooling
 
