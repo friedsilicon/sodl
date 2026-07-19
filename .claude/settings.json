@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Volumes/Home/shiva/dev/org-personal/llmwiki.git/llmwiki/shiva/**)"
+    ],
+    "additionalDirectories": [
+      "/Volumes/Home/shiva/dev/org-personal/llmwiki.git/llmwiki/shiva/areas/work/wiki",
+      "/Volumes/Home/shiva/dev/org-personal/llmwiki.git/llmwiki/shiva"
+    ]
+  }
+}

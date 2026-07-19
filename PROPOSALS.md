@@ -81,6 +81,9 @@ and no member types there is no wire format and no size rule, which makes
 length. A tag type plus a member-to-type binding addresses the
 discriminant, the encoding, and the size question together.
 
+This replaces the existing `UnionDecl` production; it is not a parallel
+construct alongside it.
+
 **Open questions.**
 
 - Whether tag values are explicit, implicit, or either; and whether

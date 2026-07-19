@@ -39,6 +39,20 @@ fewer is almost certainly incomplete:
 5. `Primer.md` — how to teach it.
 6. `TODO.md` — remove anything the change resolves; add anything it opens.
 
+## Implementing a proposal
+
+When asked to implement a `P<n>` from `PROPOSALS.md`:
+
+- Resolve **every** open question the proposal lists. Decide; do not defer
+  and do not ask. A proposal that lands with open questions still open is
+  not implemented.
+- The decision record states what you chose *and what you rejected*, with
+  the reasoning. A record that only describes the winner is half a record.
+- Where a resolution contradicts existing normative text, edit that text.
+  Leaving the contradiction standing is the one unacceptable outcome.
+- Remove the `P<n>` section from `PROPOSALS.md` — the proposal has left.
+- Commit when the six files above are consistent and the checker passes.
+
 ## Checking
 
 ```
