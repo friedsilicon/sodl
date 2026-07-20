@@ -33,11 +33,14 @@ enum AccountStatus {
     Pending = 4
 }
 
-// Union type for contact methods
-union ContactMethod {
-    Email,
-    Phone,
-    Address
+// Discriminated union for contact methods (D12).
+// A tag type (uint8, the wire discriminant) plus a `name = tag -> Type`
+// binding per member. Each member type is fixed-size, so ContactMethod is
+// fixed-size and may sit in a fixed-length list.
+union ContactMethod : uint8 {
+    Email  = 1 -> string;
+    Phone  = 2 -> string;
+    Postal = 3 -> Address;
 }
 
 // Struct for detailed address.
@@ -190,6 +193,7 @@ UserAccount rootUser = {
     email: "root@acme.example",
     role: UserRole.Admin,
     status: AccountStatus.Active,
+    contactMethod: Email("root@acme.example"),
     twoFactorEnabled: true
 };
 

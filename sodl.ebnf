@@ -37,8 +37,17 @@ EnumDecl           ::= "enum" Identifier "{" EnumValueList "}"
 EnumValueList      ::= EnumValue ("," EnumValue)* ","?
 EnumValue          ::= Identifier ("=" IntegerLiteral)?
 
-/* Union Declaration */
-UnionDecl          ::= "union" Identifier "{" IdentList "}"
+/* Union Declaration — D12: discriminated union.
+ * A tag type plus a `name = tag -> Type` binding per member. Replaces the
+ * old bare-identifier form, whose members resolved to nothing (the
+ * union-has-no-semantics bug). The tag is the wire discriminant; a union is
+ * encoded as the tag followed by the selected member, so its size is the
+ * tag plus the largest member — fixed, hence legal in a `[Union; N]` list.
+ */
+UnionDecl          ::= "union" Identifier ":" UnsignedType "{" UnionMemberList "}"
+UnionMemberList    ::= UnionMember+
+UnionMember        ::= Identifier "=" IntegerLiteral "->" Type ";"
+UnsignedType       ::= "uint8" | "uint16" | "uint32" | "uint64"
 
 /* Const Declaration — D10.
  * Binds a name to a compile-time literal. The type is declared, never
@@ -174,9 +183,15 @@ Value              ::= NumberLiteral
                      | StringLiteral
                      | BooleanLiteral
                      | EnumMember
+                     | UnionLiteral
                      | Identifier
                      | ObjectLiteral
                      | ListLiteral
+
+/* Union value — D12. The member name selects the tag; the parenthesized
+ * value has that member's declared type. Distinguished from a bare
+ * Identifier by the following "(" (one token of lookahead). */
+UnionLiteral       ::= Identifier "(" Value ")"
 
 ObjectLiteral      ::= "{" ObjectLiteralFieldList? "}"
 ObjectLiteralFieldList ::= ObjectLiteralField ("," ObjectLiteralField)* ","?
@@ -223,4 +238,10 @@ Comment            ::= "//" [^\n]*
  * 8. (D11) An alias's constraints and any constraint added at a use site
  *    both apply — a value must satisfy every constraint along the chain
  *    plus the field's own. Intersection, never override.
+ * 9. (D12) A union member's tag must fit its union's tag type. Member
+ *    names and tag values are each unique within the union.
+ * 10. (D12) A union member type must be fixed-size. `bytes` and `tlv<T>`,
+ *    the variable-length constructs, are not admissible member types.
+ *    (The regex checker sees these directly; it does not trace a struct
+ *    member back to a variable-length field it transitively contains.)
  * ------------------------------------------------------------------ */

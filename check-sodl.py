@@ -184,6 +184,39 @@ def check(path):
         if srckey not in keydecls:
             errs.append(f"keymap {srckey}:{tgt}: source key `{srckey}` not declared")
 
+    # --- D12: discriminated unions. Tag type is unsigned; tags fit and are
+    # unique; member names are unique; members are fixed-size (no bytes/tlv).
+    unsigned_bits = {"uint8": 8, "uint16": 16, "uint32": 32, "uint64": 64}
+    for m in re.finditer(r"^union (\w+)\s*:\s*([^\s{]+)\s*\{(.*?)^\}", src, re.S | re.M):
+        uname, tagtype = m.group(1), m.group(2)
+        bits = unsigned_bits.get(tagtype)
+        if bits is None:
+            errs.append(f"union {uname}: tag type `{tagtype}` is not an unsigned integer (D12)")
+        seen_names, seen_tags = set(), {}
+        for line in m.group(3).splitlines():
+            line = re.sub(r"//.*", "", line)
+            mm = re.match(r"\s*(\w+)\s*=\s*(0x[0-9a-fA-F]+|\d+)\s*->\s*(.+?)\s*;\s*$", line)
+            if not mm:
+                continue
+            mname, tag, mtype = mm.group(1), mm.group(2), mm.group(3).strip()
+            if mname in seen_names:
+                errs.append(f"union {uname}: duplicate member name `{mname}` (D12)")
+            seen_names.add(mname)
+            tagval = int(tag, 0)
+            if tagval in seen_tags:
+                errs.append(
+                    f"union {uname}: tag {tag} on `{mname}` duplicates `{seen_tags[tagval]}` (D12)"
+                )
+            else:
+                seen_tags[tagval] = mname
+            if bits is not None and tagval >= (1 << bits):
+                errs.append(f"union {uname}.{mname}: tag {tag} does not fit in {tagtype} (D12)")
+            if mtype == "bytes" or re.match(r"tlv\s*<", mtype):
+                errs.append(
+                    f"union {uname}.{mname}: member type `{mtype}` is variable-length; "
+                    f"union members must be fixed-size (D12)"
+                )
+
     # --- defect 19: importing a name that collides with a BasicType.
     for m in re.finditer(r"^import\s*\{([^}]*)\}", src, re.M):
         for name in (n.strip() for n in m.group(1).split(",")):

@@ -46,13 +46,17 @@ enum TransactionStatus {
     Reversed = 0x20    // Transaction was reversed
 }
 
-// Complex union with multiple options
-union AuthenticationFactor {
-    PasswordHash,
-    TOTPToken,
-    BiometricData,
-    SecurityKey,
-    RecoveryCode
+// Discriminated union with multiple options (D12). Every member type is
+// fixed-size, so AuthenticationFactor is fixed-size and `[AuthenticationFactor;
+// 3]` below has a defined length. `bytes` would be rejected here — a
+// variable-length member is not admissible — so BiometricData is carried as
+// a fixed [uint8; N] run instead.
+union AuthenticationFactor : uint8 {
+    PasswordHash = 1 -> Crypto.SHA256Hash;
+    TOTPToken    = 2 -> string;
+    BiometricData = 3 -> [uint8; 512];
+    SecurityKey  = 4 -> [uint8; 64];
+    RecoveryCode = 5 -> string;
 }
 
 // D4: named structs only — no anonymous inline object types.

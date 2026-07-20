@@ -152,6 +152,37 @@ UserAccount root = {
 Checked against the declaration — every constraint, every `required` field.
 A typo here is a compile error, not a 3am page.
 
+## Unions
+
+A union is a tagged choice: one of several typed alternatives, with a tag
+byte in front saying which. You give it a tag type and bind each member to
+a type:
+
+```sodl
+union ContactMethod : uint8 {
+    Email  = 1 -> string;
+    Phone  = 2 -> string;
+    Postal = 3 -> Address;
+}
+```
+
+The tags are written, not counted — they're the wire discriminant, so
+reordering the members must not change them. Every member type has to be
+fixed-size (so `bytes` and `tlv<T>` are out), which is what lets a union sit
+in a fixed-length list: `[ContactMethod; 3]` has a length because a union
+is the tag plus its largest member.
+
+In data, you name the member and hand it a value; the tag comes from the
+name:
+
+```sodl
+contactMethod: Email("root@acme.example")
+```
+
+Enums are the flatter cousin — named integers with no payload. A union
+member carries a value; an enum member is just a value. They don't fold
+into each other.
+
 ## Types worth knowing
 
 - `bytes` — variable-length binary: certs, keys, cache bodies.

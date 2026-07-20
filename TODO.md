@@ -20,16 +20,8 @@ supplies it. Both `rootUser.userId` and `acme.orgId` do this in
 needs a "generate this field" syntax, or a rule that objects with `assigned`
 fields cannot be written as instances. Product call — same class as D7.
 
-**`union` has no semantics.** Members don't resolve: `AuthenticationFactor`
-lists `PasswordHash`, `TOTPToken`, `BiometricData`, `SecurityKey`,
-`RecoveryCode` — none declared. `ContactMethod` lists `Email`, `Phone` —
-neither declared. No discriminant, no wire format, no size rule, so
-`[AuthenticationFactor; 3]` is a fixed-size list of something with no size.
-Either specify it or cut it. Currently the only construct with no defined
-semantics.
-
 **Instance data is not type-checked.** `userId: "018f3a2b-..."` and `price:
-"49.99"` now resolve — D10 made `UUID` and `Money` local aliases for
+"49.99"` now resolve — D11 made `UUID` and `Money` local aliases for
 constrained `string`s, so the types are defined and their patterns are even
 knowable statically. But nothing checks them: static check 4 (grammar, foot)
 promises structural and constraint matching of instance values, and
@@ -64,3 +56,8 @@ lint cannot match a literal against an alias's pattern.
   unstated (audit defect 22). `random` likewise: source, width, uniqueness.
 - **`cascadeDelete`** — one sentence, no story for cycles.
   `advanced-examples.sodl` has a real `Department` ↔ `Employee` cycle.
+- **Union member fixed-size is checked shallowly (D12).** `check-sodl.py`
+  rejects a `bytes` or `tlv<T>` union member directly, but a member typed as
+  a struct that transitively contains a `bytes` or `tlv` field slips through.
+  The same transitive hole exists for `[T; N]` lists; both need the AST the
+  regex checker doesn't have.

@@ -221,3 +221,50 @@ transitive.
 its base for no benefit at v1, and a config/IDL language gains nothing from
 distinguishing `Port` from `uint16` on the wire. Constraints still bind to
 the name; transparency is about type identity, not about dropping the rules.
+
+## D12 — Discriminated `union`
+
+`union` gains a tag type and binds each member to a type. This replaces the
+bare-identifier `UnionDecl`, whose members resolved to nothing — the only
+construct in the language with no defined semantics.
+
+```sodl
+union ContactMethod : uint8 {
+    Email  = 1 -> string;
+    Phone  = 2 -> string;
+    Postal = 3 -> Address;
+}
+```
+
+The open questions in P3, resolved:
+
+- **Tags are explicit and required; duplicates are an error.** Rejected the
+  enum-style implicit numbering (`EnumValue`'s optional `= n`). A union tag
+  is a wire discriminant, not a display ordinal: implicit numbering makes
+  reordering members silently change the encoding. Written tags cannot. Both
+  the tag values and the member names must be unique within the union.
+
+- **The tag type is restricted to the unsigned integers** `uint8`–`uint64`.
+  Rejected signed, float, and string tags: a discriminant is a small
+  non-negative wire tag, and nothing else earns a place in front of every
+  value.
+
+- **Members must be fixed-size; `bytes` and `tlv<T>` are excluded.** A union
+  is `tag + largest member`, so it is fixed-size only if every member is —
+  which is what lets `[AuthenticationFactor; 3]` (D4's fixed-layout goal)
+  have a length at all. Rejected admitting the variable-length constructs:
+  that would reintroduce the very hole P3 exists to close. The regex checker
+  catches a `bytes`/`tlv` member directly; it does not trace a struct member
+  back to a variable-length field nested inside it (noted in `TODO.md`).
+
+- **A union value is written `Member(value)`** in instance data. The member
+  name selects the tag, so the tag is recoverable without writing it.
+  Rejected a `{ tag: n, value: … }` form (the tag would be redundant with,
+  and could contradict, the member) and a bare member name with no payload
+  (a union member always carries one).
+
+- **Union and enum stay separate.** Rejected subsuming `enum` into a
+  payload-less union: an enum member is a bare named integer usable as a
+  value (`default = UserRole.Guest`), a union member binds a type and is
+  never a value on its own. Collapsing them would burden every enumerand
+  with a unit type and cost `enum` its role as a plain constant set.

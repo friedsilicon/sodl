@@ -88,6 +88,38 @@ the value must satisfy the alias's constraints *and* the field's
 (intersection, never override). A field cannot loosen an invariant its
 alias declared.
 
+### 4.5 Discriminated unions
+
+    union Name : TagType { Member = tag -> Type; ... }
+
+A union is a tagged choice among typed members. `TagType` is an unsigned
+integer basic type — `uint8`, `uint16`, `uint32`, `uint64` — and is the
+wire discriminant. Each member binds a name to an explicit tag value and a
+member type:
+
+    union ContactMethod : uint8 {
+        Email  = 1 -> string;
+        Phone  = 2 -> string;
+        Postal = 3 -> Address;
+    }
+
+Rules, checked statically:
+
+- Tag values are explicit and must fit in `TagType`. Member names and tag
+  values are each unique within the union. There is no implicit numbering:
+  the tag is a wire contract, so it is written, not inferred from position.
+- A member type must be fixed-size. `bytes` and `tlv<T>` — the
+  variable-length constructs — are not admissible member types.
+
+A union is encoded as the tag followed by the selected member's value. Its
+size is the size of `TagType` plus the size of the largest member, so a
+union is itself fixed-size and may appear in a fixed-length list
+(`[ContactMethod; 3]`).
+
+Union and enum are separate constructs. An enum member is a bare named
+integer and carries no payload; a union member binds a type. Neither
+subsumes the other.
+
 ## 5. Fields
 
 Every field terminates with `;`. Props within a field are separated by `,`:
@@ -170,6 +202,12 @@ An instance declaration binds a name to a populated value:
 The value is checked against the named type: structurally, and against
 every constraint and `required` prop. Object literals nest; list literals
 use `[a, b, c]`.
+
+A union value is written `Member(value)`: the member name selects the tag,
+and the parenthesized value has that member's type. The tag is thus
+recoverable from the literal without being written out.
+
+    contactMethod: Email("root@acme.example")
 
 ## 8. Dotted names
 
