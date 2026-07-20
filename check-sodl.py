@@ -190,6 +190,20 @@ def check(path):
             if name in BASIC_TYPES:
                 errs.append(f"import: `{name}` collides with a BasicType (static check 5)")
 
+    # --- D11 (static check 7): alias chains must terminate; no cycles.
+    # An alias's RHS head token is another alias iff it names one; those are
+    # the only edges that can form a cycle. Chase each chain and flag a loop.
+    aliases = dict(re.findall(r"^alias\s+(\w+)\s*=\s*(\w+)", src, re.M))
+    for start in aliases:
+        seen, cur = [], start
+        while cur in aliases:
+            if cur in seen:
+                loop = " -> ".join(seen[seen.index(cur):] + [cur])
+                errs.append(f"alias `{start}`: cycle {loop} (static check 7)")
+                break
+            seen.append(cur)
+            cur = aliases[cur]
+
     return errs
 
 

@@ -1,12 +1,12 @@
 // Advanced SODL Examples
 //
-// Demonstrates the features the basic example omits: hex enum values,
-// constraints, qualified types, nested field paths, cross-object refs,
-// TLV over compound types, `bytes`, and structured instance data.
+// Demonstrates the features the basic example omits: aliases, hex enum
+// values, constraints, qualified types, nested field paths, cross-object
+// refs, TLV over compound types, `bytes`, and structured instance data.
 
 // Import common types and utilities.
 // Timestamp is NOT imported — it is a BasicType (static check 5).
-import { UUID, Money, GeoLocation } from "common_types"
+import { GeoLocation } from "common_types"
 import { EmailAddress, PhoneNumber, IPAddress } from "validated_types"
 import { * } from "crypto_types" as Crypto
 
@@ -15,6 +15,25 @@ import { * } from "crypto_types" as Crypto
 const MIN_PASSWORD_LENGTH: uint8 = 8;
 const MAX_PASSWORD_LENGTH: uint8 = 128;
 const DEFAULT_SESSION_TIMEOUT: uint32 = 3600;
+
+// Named types (D11). An alias binds a name to a type; a constraint written
+// here travels with the name to every use site (unlike a field's own
+// constraint, which is local). `UUID` and `Money` were previously imported
+// from a `common_types` module that did not exist — they are constrained
+// primitives, which no other construct can name.
+alias UUID  = string, pattern = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
+alias Money = string, pattern = "^[0-9]+\.[0-9]{2}$";
+
+// An alias may name another alias — chains resolve transitively and their
+// constraints accumulate. `EntityId` is transparently a `UUID`, hence a
+// constrained `string`.
+alias EntityId = UUID;
+
+// A constraint on an alias is a floor, not a ceiling: a use site may pin a
+// tighter bound on top (intersection, never override). `AddressIndex`
+// admits 0..9 in general; the `preferredAddress` field below narrows it to
+// the five shipping addresses actually present. Both bounds apply.
+alias AddressIndex = uint8, range(0, 9);
 
 // Advanced enum with explicit hex values (defect 11).
 // Bit flags, so each value is a distinct bit.
@@ -101,7 +120,9 @@ struct OrderCustomer {
     email: EmailAddress, required;
     phone: PhoneNumber, optional;
     shippingAddresses: [Address; 5];
-    preferredAddress: uint8, range(0, 4);
+    // D11: the field narrows AddressIndex's 0..9 to 0..4. Intersection —
+    // the value must satisfy both the alias's bound and the field's.
+    preferredAddress: AddressIndex, range(0, 4);
 }
 
 // D4: lifted from the anonymous element type of `items: [{ ... }; 50]`.
@@ -224,7 +245,9 @@ struct AuditChange {
 }
 
 object AuditedEntity {
-    entityId: UUID, assigned = counter, key;
+    // D11: EntityId chains onto UUID — a transparent synonym, so this is
+    // the same type the AuditedEntityKey declaration names as UUID.
+    entityId: EntityId, assigned = counter, key;
     entityType: string;
     auditInfo: BaseAuditInfo;
     changes: [AuditChange; 100];

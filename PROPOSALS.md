@@ -9,33 +9,6 @@ the rules become prose in `SODL_Specification.md`, and the construct appears
 in the examples and `Primer.md`. A proposal that is rejected leaves with a
 decision record saying why.
 
-## P1 — `alias`: named type
-
-Binds a name to a type, optionally with constraints attached.
-
-```sodl
-alias Port = uint16, range(1, 65535);
-alias UUID = string, pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-...";
-```
-
-**Motivation.** Spec §4.3 requires every field type to be named, but the
-only way to name one today is to declare a struct, object, key, union, or
-enum. There is no way to name a constrained primitive. Both example files
-reference `UUID` and `Money` as if from a `common_types` module that does
-not exist, so static check 4 cannot be exercised on them — see the
-"instance data is not type-checked" bug in `TODO.md`.
-
-**Open questions.**
-
-- Spec §5.1 states a constraint does not travel with a type through an
-  alias. If `alias Port = uint16, range(1, 65535)` is admitted, that
-  sentence is either wrong or aliases are a deliberate exception. Decide
-  which, and edit §5.1 accordingly.
-- Whether a field may add constraints on top of an alias that already
-  carries them, and if so whether the effect is intersection or override.
-- Whether aliases may chain, and whether a cycle is a static error.
-- Whether an alias is a distinct type or a transparent synonym.
-
 ## P3 — Discriminated `union`
 
 Gives `union` a tag type and binds each member to a type.

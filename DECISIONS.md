@@ -185,3 +185,39 @@ called out explicitly. `Constraint` gains `NumberRef`/`StringRef`, and
 plain `Literal`. Rejected for v1: `const B = A` and `const B = A + 1`. Both
 add an evaluation order and a cycle check for little gain; a later proposal
 can lift the restriction.
+
+## D11 — `alias`: named type (P1)
+
+`alias Name = Type, constraint*;` binds a name to a type. §4.3 required every
+field type to be named, yet no construct could name a *constrained
+primitive* — the sole reason the example files leaned on a phantom
+`common_types` for `UUID` and `Money`. `alias` fills that gap. The four open
+questions, resolved:
+
+**Constraints travel through an alias.** `alias Port = uint16, range(1,
+65535)` carries its range to every use. This directly contradicts the old
+§5.1 sentence ("a constraint does not travel with a type through an alias"),
+so that sentence is rewritten rather than preserved: field constraints stay
+local; alias constraints do not. *Rejected:* keeping §5.1 as written and
+forbidding constraints on aliases — that would leave `alias` a bare typedef,
+unable to name the constrained primitives that motivated it.
+
+**A use site adds constraints; it never replaces them.** A field may pin a
+tighter bound on top of an alias (`preferredAddress: AddressIndex, range(0,
+4)` where `AddressIndex` is `range(0, 9)`). Both apply — intersection.
+*Rejected:* override. Override lets a field silently widen an invariant the
+alias author declared; a config language should make the tighter rule win,
+not the later-written one.
+
+**Aliases chain; cycles are a static error.** An alias may name another
+alias, constraints accumulating down the chain, which must terminate at a
+non-alias type. A cycle is rejected statically (check 7). *Rejected:*
+forbidding chains — needless, since resolution is already whole-program and
+transitive.
+
+**An alias is a transparent synonym, not a distinct type.** `Port` *is*
+`uint16`; no conversion rules, no nominal identity. *Rejected:* nominal
+(distinct) typing — it would demand a conversion story between an alias and
+its base for no benefit at v1, and a config/IDL language gains nothing from
+distinguishing `Port` from `uint16` on the wire. Constraints still bind to
+the name; transparency is about type identity, not about dropping the rules.
