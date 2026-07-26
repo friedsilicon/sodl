@@ -28,17 +28,20 @@ neither declared. No discriminant, no wire format, no size rule, so
 Either specify it or cut it. Currently the only construct with no defined
 semantics.
 
-**Instance data is not type-checked.** `userId: "018f3a2b-..."` puts a string
-in a `UUID`; `price: "49.99"` puts a string in a `Money`. Both pass because
-`UUID` and `Money` come from `common_types`, which does not exist. Static
-check 4 (grammar, foot) promises structural matching; nothing implements it
-and nothing can until imports resolve.
+**Instance data is not type-checked.** `userId: "018f3a2b-..."` and `price:
+"49.99"` now resolve — D10 made `UUID` and `Money` local aliases for
+constrained `string`s, so the types are defined and their patterns are even
+knowable statically. But nothing checks them: static check 4 (grammar, foot)
+promises structural and constraint matching of instance values, and
+`check-sodl.py` still implements none of it. This needs an AST — the regex
+lint cannot match a literal against an alias's pattern.
 
 ## Next steps
 
-- **Make one import resolvable.** A real `common_types.sodl` defining `UUID`
-  and `Money` turns static check 4 into a test and exposes what else hides
-  behind unresolved names.
+- **Make one import resolvable.** D10 pulled `UUID` and `Money` in-file as
+  aliases, but `GeoLocation`, the `validated_types` names, and the `Crypto`
+  wildcard are still unresolved imports. A real module behind one of them
+  turns static check 4 into a test and exposes what else hides behind a name.
 - **Write a parser.** The grammar has never been fed to a generator. `D5`
   above is exactly the kind of bug that surfaces the moment one runs.
 - **Move checks off regex.** `check-sodl.py` reads concrete syntax by regex.

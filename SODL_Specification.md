@@ -53,11 +53,40 @@ are not shadowable.
 
 ### 4.3 User types
 
-A struct, object, key, union, or enum name. May be qualified by an import
-alias: `Crypto.SHA256Hash`.
+A struct, object, key, union, enum, or alias name. May be qualified by an
+import alias: `Crypto.SHA256Hash`.
 
 Field types are always named. There are no anonymous inline object types;
 a nested structure is declared as a struct and referenced by name.
+
+### 4.4 Aliases
+
+An alias binds a name to a type, optionally with constraints:
+
+    alias Port = uint16, range(1, 65535);
+    alias UUID = string, pattern = "^[0-9a-fA-F]{8}-...-[0-9a-fA-F]{12}$";
+
+An alias is a **transparent synonym**, not a distinct type. `Port` resolves
+to `uint16` everywhere and is wire-identical to it; no conversion is defined
+or needed, and a value typed `Port` is a value typed `uint16`. Aliases exist
+to *name* a type — above all a constrained primitive, which no other
+construct can name.
+
+**Constraints travel.** A constraint written on an alias declaration is part
+of the alias and applies at every use site. This is the one exception to
+§5.1: field constraints are local, but an alias's are not — that is the
+point of the construct.
+
+**Aliases chain.** An alias may name another alias. The chain must terminate
+at a non-alias type; a cycle (`alias A = B; alias B = A`) is a static error.
+Constraints **accumulate** down the chain: a value must satisfy every
+constraint on every link.
+
+**Use sites add, they do not replace.** A field may attach its own
+constraints on top of an alias that already carries some. Both apply —
+the value must satisfy the alias's constraints *and* the field's
+(intersection, never override). A field cannot loosen an invariant its
+alias declared.
 
 ## 5. Fields
 
@@ -80,9 +109,11 @@ Every field terminates with `;`. Props within a field are separated by `,`:
 | `range(min, max)` | Numeric bounds, inclusive. |
 | `pattern = "regex"` | String must match. |
 
-Constraints (`range`, `pattern`) are props. They are not part of the type:
-`uint8, range(0, 120)` — never `uint8 range(0, 120)`. A constraint does not
-travel with a type through an alias.
+Constraints (`range`, `pattern`) are props. Written on a **field** they are
+not part of the type and are local to that field: `uint8, range(0, 120)` —
+never `uint8 range(0, 120)`. Written on an **alias** they bind into the
+named type and travel with it (§4.4); an alias's constraints and a field's
+own both apply, by intersection.
 
 A `range` bound, a `pattern`, a `strict` value, and a `default` may each be
 given as a named constant in place of a literal (§9).

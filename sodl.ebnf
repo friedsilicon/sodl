@@ -30,6 +30,7 @@ Declaration         ::= EnumDecl
                       | KeyDecl
                       | ObjectDecl
                       | KeyMapDecl
+                      | AliasDecl
 
 /* Enum Declaration */
 EnumDecl           ::= "enum" Identifier "{" EnumValueList "}"
@@ -47,6 +48,16 @@ UnionDecl          ::= "union" Identifier "{" IdentList "}"
  * site (see static check 6).
  */
 ConstDecl          ::= "const" Identifier ":" BasicType "=" Literal ";"
+
+/* Alias Declaration — D11.
+ * Binds a name to a type, optionally carrying constraints. A transparent
+ * synonym, not a distinct type: an alias resolves to its underlying type
+ * everywhere, and is wire-identical to it. Constraints written here travel
+ * with the name to every use site (unlike a field's own constraints, which
+ * are local — see spec §5.1). An alias may name another alias; the chain's
+ * constraints accumulate. A cycle is a static error (check 7).
+ */
+AliasDecl          ::= "alias" Identifier "=" Type ("," Constraint)* ";"
 
 /* Struct Declaration
  * D1: fields terminate with ";".  D2: no "type =" prefix.
@@ -207,4 +218,9 @@ Comment            ::= "//" [^\n]*
  *    (`const X: uint8 = 300` is an error). A const reference must resolve
  *    to a declared const, and is checked in the position exactly as if its
  *    literal were written inline.
+ * 7. (D11) An alias may not refer to itself, directly or transitively.
+ *    Alias chains must terminate at a non-alias type; a cycle is an error.
+ * 8. (D11) An alias's constraints and any constraint added at a use site
+ *    both apply — a value must satisfy every constraint along the chain
+ *    plus the field's own. Intersection, never override.
  * ------------------------------------------------------------------ */

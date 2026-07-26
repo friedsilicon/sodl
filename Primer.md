@@ -30,6 +30,32 @@ email: string, pattern = "^[^@]+@[^@]+$";
 Constraints are props, not part of the type. `uint8, range(13, 120)` — the
 comma matters.
 
+## Naming a type
+
+Every field type has to be named. Structs, objects, enums, and unions give
+you names for compound shapes — but not for a *constrained primitive*. That
+is what `alias` is for:
+
+```sodl
+alias Port = uint16, range(1, 65535);
+alias UUID = string, pattern = "^[0-9a-fA-F]{8}-...-[0-9a-fA-F]{12}$";
+```
+
+An alias is just another name for its type — `Port` *is* a `uint16`, nothing
+converts between them. What the alias adds is that its constraints come
+along for the ride: write `Port` anywhere and the `1..65535` bound is
+already in force. Compare a field constraint, which stays put on that one
+field.
+
+A field can tighten an alias further, and both bounds hold:
+
+```sodl
+preferredAddress: AddressIndex, range(0, 4);  // AddressIndex is range(0, 9)
+```
+
+Never looser — a field can only add rules, not drop the alias's. Aliases can
+also name other aliases; the chain just can't loop back on itself.
+
 ## Constants
 
 A `const` gives a literal a name:
