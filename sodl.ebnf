@@ -25,6 +25,7 @@ ImportTarget        ::= "{" IdentList "}"      (* Selective imports *)
 /* Declarations */
 Declaration         ::= EnumDecl
                       | UnionDecl
+                      | ConstDecl
                       | StructDecl
                       | KeyDecl
                       | ObjectDecl
@@ -38,6 +39,15 @@ EnumValue          ::= Identifier ("=" IntegerLiteral)?
 /* Union Declaration */
 UnionDecl          ::= "union" Identifier "{" IdentList "}"
 
+/* Const Declaration — D10.
+ * Binds a name to a compile-time literal. The type is declared, never
+ * inferred, and is a basic type; the value is a single Literal of that
+ * type. A const does not reference another const and permits no
+ * arithmetic. A const reference is equivalent to its literal at the use
+ * site (see static check 6).
+ */
+ConstDecl          ::= "const" Identifier ":" BasicType "=" Literal ";"
+
 /* Struct Declaration
  * D1: fields terminate with ";".  D2: no "type =" prefix.
  * D4: Type here is never an anonymous inline object.
@@ -46,7 +56,7 @@ StructDecl         ::= "struct" Identifier "{" StructFieldList "}"
 StructFieldList    ::= StructField+
 StructField        ::= Identifier ":" Type ("," StructFieldProp)* ";"
 StructFieldProp    ::= Constraint
-                     | "strict" "=" Literal
+                     | "strict" "=" StrictValue
 
 /* Key Declaration
  * D6: a key names an access path by which an object may be addressed.
@@ -70,7 +80,7 @@ ObjectFieldProp    ::= "assigned" "=" AssignMode
                      | "optional"
                      | "key"
                      | "default" "=" Value
-                     | "strict" "=" Literal
+                     | "strict" "=" StrictValue
                      | Constraint
 
 /* Props shared by key fields (D3: constraints are props, not type suffixes) */
@@ -82,8 +92,17 @@ MetaProp           ::= "required"
  * The no-comma form `uint8 range(0,120)` is deliberately NOT grammar:
  * it matched zero sites in either example file.
  */
-Constraint         ::= "range" "(" NumberLiteral "," NumberLiteral ")"
-                     | "pattern" "=" StringLiteral
+Constraint         ::= "range" "(" NumberRef "," NumberRef ")"
+                     | "pattern" "=" StringRef
+
+/* D10: the literal-bearing positions also accept a const reference — an
+ * Identifier resolving to a ConstDecl, standing in as if its value were
+ * written inline (static check 6). `default` and instance data need no
+ * widening: Value already admits Identifier. */
+NumberRef          ::= NumberLiteral | ConstRef
+StringRef          ::= StringLiteral | ConstRef
+StrictValue        ::= Literal | ConstRef
+ConstRef           ::= Identifier
 
 AssignMode         ::= "counter" | "random"
 
@@ -184,4 +203,8 @@ Comment            ::= "//" [^\n]*
  *    and satisfy every constraint and `required` prop on that type.
  * 5. (Defect 19) `Timestamp` is a BasicType. Importing a name that
  *    collides with a BasicType is an error, not shadowing.
+ * 6. (D10) A ConstDecl's Literal must be valid for its declared BasicType
+ *    (`const X: uint8 = 300` is an error). A const reference must resolve
+ *    to a declared const, and is checked in the position exactly as if its
+ *    literal were written inline.
  * ------------------------------------------------------------------ */

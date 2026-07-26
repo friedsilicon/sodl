@@ -84,6 +84,9 @@ Constraints (`range`, `pattern`) are props. They are not part of the type:
 `uint8, range(0, 120)` — never `uint8 range(0, 120)`. A constraint does not
 travel with a type through an alias.
 
+A `range` bound, a `pattern`, a `strict` value, and a `default` may each be
+given as a named constant in place of a literal (§9).
+
 ## 6. Identity: keys and keymaps
 
 Keys and keymaps are how an object is addressed. An object may be
@@ -150,3 +153,28 @@ scopes:
 | Object ref | `Employee.employeeId` | another object |
 
 Each is legal only where its production admits it.
+
+## 9. Constants
+
+A `const` binds a name to a compile-time literal:
+
+    const MAX_RETRIES: uint8 = 5;
+    const DEFAULT_HOST: string = "127.0.0.1";
+
+The type is declared, never inferred, and is a basic type (§4.1) that has a
+literal form — number, string, or bool. `bytes` and `Timestamp` have no
+literal, so they cannot be a const's type. The value is a single literal: a
+const references no other const, and no arithmetic is permitted.
+
+A const reference is equivalent to writing its literal in place. Two checks
+follow from that. First, the declared type is checked against the const's
+own value — `const X: uint8 = 300` is an error, because 300 does not fit
+`uint8`. Second, at a use site the value is checked exactly as an inline
+literal would be: `const X: uint8 = 5` is legal against a `uint16` field
+because 5 fits it, and `const Y: uint16 = 300` is not legal against a
+`uint8` field because 300 does not.
+
+A const may be used wherever a value of its type is legal: as a `range`
+bound, a `pattern`, a `strict` value, a `default`, and in instance data.
+The declared type also fixes the category of the reference — a string const
+cannot be a numeric bound.

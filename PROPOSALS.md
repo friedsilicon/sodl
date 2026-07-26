@@ -36,30 +36,6 @@ not exist, so static check 4 cannot be exercised on them — see the
 - Whether aliases may chain, and whether a cycle is a static error.
 - Whether an alias is a distinct type or a transparent synonym.
 
-## P2 — `const`: named literal
-
-Binds a name to a compile-time literal value.
-
-```sodl
-const MAX_RETRIES: uint8 = 5;
-const DEFAULT_HOST: string = "127.0.0.1";
-```
-
-**Motivation.** Every bound and default in both example files is an unnamed
-literal. A named constant is usable from `range(...)`, `default = ...`, and
-`strict = ...`, and from instance data.
-
-**Open questions.**
-
-- Whether a `const` is admitted wherever `Value` is, or only in the prop
-  positions that take a literal.
-- Whether `range(0, MAX_RETRIES)` resolves. `Constraint` currently takes
-  `NumberLiteral`, not `Value`, so this needs an explicit answer.
-- Whether the declared type is required or inferred, and what conversions
-  are legal — `const X: uint8 = 5` used against a `uint16` field.
-- Whether constants may reference other constants, and whether arithmetic
-  is permitted. Probably not, for v1.
-
 ## P3 — Discriminated `union`
 
 Gives `union` a tag type and binds each member to a type.
