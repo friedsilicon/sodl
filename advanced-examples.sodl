@@ -10,6 +10,12 @@ import { UUID, Money, GeoLocation } from "common_types"
 import { EmailAddress, PhoneNumber, IPAddress } from "validated_types"
 import { * } from "crypto_types" as Crypto
 
+// Named literals — D10. Used below as range bounds, a default, and in
+// instance data. A const stands in exactly as if its value were inline.
+const MIN_PASSWORD_LENGTH: uint8 = 8;
+const MAX_PASSWORD_LENGTH: uint8 = 128;
+const DEFAULT_SESSION_TIMEOUT: uint32 = 3600;
+
 // Advanced enum with explicit hex values (defect 11).
 // Bit flags, so each value is a distinct bit.
 enum TransactionStatus {
@@ -34,7 +40,7 @@ union AuthenticationFactor {
 // The original nested this brace-block directly inside
 // SecurityConfiguration; it is lifted to a named struct.
 struct PasswordPolicy {
-    minLength: uint8, range(8, 128);
+    minLength: uint8, range(MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH);
     requireSpecialChars: bool;
     requireNumbers: bool;
     requireUppercase: bool;
@@ -46,7 +52,7 @@ struct PasswordPolicy {
 struct SecurityConfiguration {
     maxLoginAttempts: uint8, range(3, 10);
     passwordPolicy: PasswordPolicy;
-    sessionTimeout: uint32, range(300, 86400);  // 5 minutes to 24 hours
+    sessionTimeout: uint32, range(300, 86400), default = DEFAULT_SESSION_TIMEOUT;  // 5 min to 24 h
 }
 
 // D4: lifted from the anonymous `deviceInfo: { ... }` in UserSession.
@@ -284,7 +290,7 @@ SecurityConfiguration productionSecurity = {
         requireUppercase: true,
         passwordHistory: 12
     },
-    sessionTimeout: 3600
+    sessionTimeout: DEFAULT_SESSION_TIMEOUT
 };
 
 OrderItem sampleItem = {

@@ -43,7 +43,12 @@ and nothing can until imports resolve.
   above is exactly the kind of bug that surfaces the moment one runs.
 - **Move checks off regex.** `check-sodl.py` reads concrete syntax by regex.
   It enforces D6 and catches defects 17/19, but union members, instance
-  types, and anything scope-dependent need an AST.
+  types, and anything scope-dependent need an AST. It now validates each
+  `const` declaration (D10, static check 6) and that a `range` bound naming
+  an identifier resolves to a numeric const, but a const reference in
+  `default`, `strict`, or instance data is not resolved, and no reference is
+  checked to *fit* the position — both need the same field-level type
+  checking that static check 4 still lacks.
 
 ## Underspecified
 

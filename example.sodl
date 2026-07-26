@@ -9,6 +9,11 @@
 // error, not shadowing).
 import { UUID } from "common_types"
 
+// Named literals — D10. A const stands in for its value wherever a literal
+// of its type is legal: a range bound, a default, and instance data below.
+const MAX_LOGIN_ATTEMPTS: uint8 = 5;
+const DEFAULT_THEME: string = "light";
+
 // Enum for user roles
 enum UserRole {
     Admin = 1,
@@ -68,7 +73,7 @@ object UserAccount {
     status: AccountStatus, default = AccountStatus.Pending;
     contactMethod: ContactMethod;
     addresses: [Address; 3];
-    loginAttempts: uint8, default = 0;
+    loginAttempts: uint8, default = 0, range(0, MAX_LOGIN_ATTEMPTS);
     lastLoginTimestamp: Timestamp;
     twoFactorEnabled: bool, default = false;
 }
@@ -78,7 +83,7 @@ object UserAccount {
 // it and a keymap using it — see PreferencesKey below.
 object UserPreferences {
     userId: UUID, key;
-    theme: string, default = "light";
+    theme: string, default = DEFAULT_THEME;
     notifications: bool, default = true;
     language: string, default = "en";
 }

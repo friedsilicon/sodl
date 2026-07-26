@@ -30,6 +30,31 @@ email: string, pattern = "^[^@]+@[^@]+$";
 Constraints are props, not part of the type. `uint8, range(13, 120)` — the
 comma matters.
 
+## Constants
+
+A `const` gives a literal a name:
+
+```sodl
+const MAX_LOGIN_ATTEMPTS: uint8 = 5;
+const DEFAULT_THEME: string = "light";
+```
+
+The type is spelled out — no inference — and the value is one literal:
+number, string, or bool. A const can't be built from another const, and
+there's no arithmetic.
+
+Use it anywhere the bare value would go: a range bound, a default, a
+`strict` value, or in the instance data further down.
+
+```sodl
+loginAttempts: uint8, default = 0, range(0, MAX_LOGIN_ATTEMPTS);
+theme: string, default = DEFAULT_THEME;
+```
+
+A const reference just *is* its value at that spot. `const X: uint8 = 5`
+drops into a `uint16` field fine — 5 fits. `const Y: uint16 = 300` won't go
+into a `uint8` field, for the same reason `300` wouldn't: it doesn't fit.
+
 ## Objects and identity
 
 An object is a thing you store and retrieve. Every object needs at least

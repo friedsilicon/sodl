@@ -22,6 +22,64 @@ BASIC_TYPES = {
     "string", "bool", "bytes", "Timestamp",
 }
 
+# Inclusive value ranges for the integer basic types (D10, static check 6).
+INT_RANGES = {
+    "uint8": (0, 2**8 - 1),
+    "uint16": (0, 2**16 - 1),
+    "uint32": (0, 2**32 - 1),
+    "uint64": (0, 2**64 - 1),
+    "int8": (-(2**7), 2**7 - 1),
+    "int16": (-(2**15), 2**15 - 1),
+    "int32": (-(2**31), 2**31 - 1),
+    "int64": (-(2**63), 2**63 - 1),
+}
+FLOAT_TYPES = {"float32", "float64"}
+
+
+def consts(src):
+    """Parse `const NAME: TYPE = VALUE;` lines.
+
+    Returns (errs, decls) where decls maps a const name to "number" for a
+    numeric const and "other" otherwise -- enough to police range bounds,
+    which must name a numeric const (D10, static check 6). Validates each
+    literal against its declared basic type on the way through.
+    """
+    errs = []
+    decls = {}
+    for m in re.finditer(r"^const\s+(\w+)\s*:\s*(\w+)\s*=\s*(.+?);\s*$", src, re.M):
+        name, ty, val = m.group(1), m.group(2), m.group(3).strip()
+        if ty in INT_RANGES:
+            if re.fullmatch(r"0x[0-9a-fA-F]+", val):
+                n = int(val, 16)
+            elif re.fullmatch(r"-?[0-9]+", val):
+                n = int(val)
+            else:
+                errs.append(f"const {name}: `{val}` is not an integer literal for `{ty}`")
+                continue
+            lo, hi = INT_RANGES[ty]
+            if not lo <= n <= hi:
+                errs.append(f"const {name}: {val} out of range for `{ty}` [{lo}, {hi}]")
+            decls[name] = "number"
+        elif ty in FLOAT_TYPES:
+            if not re.fullmatch(r"-?[0-9]+(\.[0-9]+)?", val):
+                errs.append(f"const {name}: `{val}` is not a numeric literal for `{ty}`")
+            decls[name] = "number"
+        elif ty == "string":
+            if not re.fullmatch(r'"[^"]*"', val):
+                errs.append(f"const {name}: `{val}` is not a string literal")
+            decls[name] = "other"
+        elif ty == "bool":
+            if val not in ("true", "false"):
+                errs.append(f"const {name}: `{val}` is not a bool literal")
+            decls[name] = "other"
+        elif ty in ("bytes", "Timestamp"):
+            errs.append(f"const {name}: `{ty}` has no literal form (D10)")
+            decls[name] = "other"
+        else:
+            errs.append(f"const {name}: type `{ty}` is not a basic type (D10)")
+            decls[name] = "other"
+    return errs, decls
+
 
 def blocks(src, kw):
     """Yield (name, body) for each `kw Name { ... }` declaration."""
@@ -41,6 +99,17 @@ def fields(body):
 def check(path):
     src = open(path).read()
     errs = []
+
+    # --- D10: const declarations, and range bounds that name a const.
+    const_errs, const_decls = consts(src)
+    errs += const_errs
+    for a, b in re.findall(r"range\s*\(\s*([^,]+?)\s*,\s*([^)]+?)\s*\)", src):
+        for op in (a.strip(), b.strip()):
+            if re.fullmatch(r"[A-Za-z_]\w*", op):
+                if op not in const_decls:
+                    errs.append(f"range bound `{op}` names no declared const (D10)")
+                elif const_decls[op] != "number":
+                    errs.append(f"range bound `{op}` is not a numeric const (D10)")
 
     objects = {n: dict(fields(b)) for n, b in blocks(src, "object")}
     keydecls = {n: dict(fields(b)) for n, b in blocks(src, "key")}

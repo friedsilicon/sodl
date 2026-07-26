@@ -142,3 +142,46 @@ than the grammar narrowed. Resolves defect 28.
 
 Added to `BasicType`. Variable-length byte array — cache bodies, certs, keys,
 hashes. `[uint8; N]` remains for fixed-length runs. Resolves defect 29.
+
+## D10 — `const`: named literal
+
+Binds a name to a compile-time literal. Implements P2.
+
+```sodl
+const MAX_RETRIES: uint8 = 5;
+const DEFAULT_HOST: string = "127.0.0.1";
+```
+
+**The type is declared, not inferred**, and is a `BasicType`. Requiring it
+keeps the "every type is named" invariant (D2, D4) and needs no inference
+engine; the declared type also fixes which positions a const may fill — a
+string const is not a numeric bound. Rejected: inference from the literal.
+
+**The value is a scalar literal** — number, string, or bool. Rejected:
+enum-valued consts (`const R: UserRole = UserRole.Guest`), which would need
+enum-scope resolution in a value position, and compound consts (object or
+list literals), which are "named defaults" — a different feature. Either can
+arrive later without disturbing this record. A const declared with a type
+that has no literal form (`bytes`, `Timestamp`) is therefore an error.
+
+**A const reference is equivalent to its literal at the use site.** Writing
+`MAX_RETRIES` is writing `5` there. The declared type is checked against the
+const's own value — `const X: uint8 = 300` is an error, 300 does not fit
+`uint8` — and it gives the reference a category, but assignment at the use
+site is checked against the value, as inline. So `const X: uint8 = 5` is
+legal against a `uint16` field (5 fits) and `const Y: uint16 = 300` is not
+legal against a `uint8` field (300 does not). This answers the conversion
+question the proposal raised without introducing a widening lattice.
+
+**A const is admitted wherever `Value` is, plus the literal-only prop
+positions.** `default = Value` and instance data already admit an
+`Identifier`, so consts work there unchanged. `range(...)`, `pattern = ...`,
+and `strict = ...` took bare literals and are widened to accept a const
+reference, so `range(0, MAX_RETRIES)` resolves — the case the proposal
+called out explicitly. `Constraint` gains `NumberRef`/`StringRef`, and
+`strict` gains `StrictValue`; all three route through `ConstRef`.
+
+**No const references another const, and no arithmetic.** The RHS is a
+plain `Literal`. Rejected for v1: `const B = A` and `const B = A + 1`. Both
+add an evaluation order and a cycle check for little gain; a later proposal
+can lift the restriction.
