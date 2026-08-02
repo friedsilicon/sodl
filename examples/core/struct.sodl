@@ -1,0 +1,22 @@
+// struct — a named compound shape. D1: ';' ends a field, ',' separates
+// props. D4: no anonymous inline object types.
+
+struct Address {
+    street:  string<64>;
+    city:    string<48>;
+    zipCode: string<16>;
+}
+
+// Structs nest by name.
+struct Contact {
+    address: Address;
+    age:     uint8, range(0, 120);
+    email:   string<254>, pattern = "^[^@]+@[^@]+$";
+}
+
+// Fixed-length lists need a fixed-size element type (D16).
+struct Directory {
+    entries: [Contact; 8];
+    codes:   [uint16; 4];
+    nested:  [[uint8; 2]; 3];
+}

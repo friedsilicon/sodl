@@ -1,0 +1,4 @@
+// E016: a temporal unit is written, never defaulted.
+packed struct S {
+    at: timestamp;
+}

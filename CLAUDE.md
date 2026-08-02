@@ -7,8 +7,11 @@ grammar, spec, examples — are the product today; the Rust toolchain in
 ## Layout
 
 - `spec/` — the language definition (see the table below).
-- `examples/` — `example.sodl`, `advanced-examples.sodl`.
-- `scripts/` — `check-sodl.py`, the regex linter.
+- `examples/` — the corpus, grouped by purpose. See `examples/README.md`:
+  `core/`, `layout/`, `extensions/`, `integration/`, and `invalid/` (files
+  that must fail, each naming its error codes).
+- `scripts/` — `check-sodl.py` (the regex linter) and `run-checks.py`
+  (runs the whole corpus, valid and invalid).
 - `crates/sodl/` — the toolchain (Rust). Parser, IR, backends will grow
   here; `cargo test` runs it. The plan is `spec/TODO.md`, "Toolchain".
 
@@ -43,10 +46,10 @@ fewer is almost certainly incomplete:
 2. `spec/SODL_Specification.md` — the normative rules, in prose.
 3. `spec/DECISIONS.md` — a new `D<n>` record: what was decided, what was
    rejected, and why. Do not renumber existing records.
-4. `examples/example.sodl` and `examples/advanced-examples.sodl` — the
-   construct in use. `example.sodl` is core constructs;
-   `advanced-examples.sodl` is constraints, TLV, `bytes`, qualified names,
-   and instance data.
+4. `examples/` — the construct in use. A focused file under `core/`,
+   `layout/`, or `extensions/`, and a case under `invalid/` for each way it
+   can be got wrong, with the error codes it must produce. The two files in
+   `integration/` show it composed.
 5. `spec/Primer.md` — how to teach it.
 6. `spec/TODO.md` — remove anything the change resolves; add anything it opens.
 
@@ -67,15 +70,18 @@ When asked to implement a `P<n>` from `PROPOSALS.md`:
 ## Checking
 
 ```
-scripts/check-sodl.py          # defaults to the examples/ corpus
-cargo test                     # once the toolchain has anything to test
+scripts/run-checks.py          # whole corpus: valid must pass, invalid must fail
+cargo test                     # unit tests, plus golden-file comparison
 ```
 
-`check-sodl.py` must pass before committing. It enforces the rules EBNF
+Both must pass before committing. `run-checks.py` is the one that matters:
+it asserts that invalid input is *rejected*, with the expected error codes. It enforces the rules EBNF
 cannot state — key/keymap coherence, redundant props, basic-type collisions.
 It reads concrete syntax by regex rather than parsing, so it is easy to
 defeat by accident; if a new construct needs a check it cannot see, extend it
 or note the gap in `spec/TODO.md` explicitly rather than leaving it silent.
+A new check needs a case under `examples/invalid/` proving it fires; a check
+with no negative test is one that can stop working unnoticed.
 
 Scripting is Python (match `check-sodl.py`); the toolchain proper is Rust.
 

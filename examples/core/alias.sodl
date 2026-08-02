@@ -1,0 +1,17 @@
+// alias — D11. Names a type, optionally carrying constraints.
+
+// The only way to name a constrained primitive.
+alias Port = uint16, range(1, 65535);
+
+// string<36> is fixed-size (D16), so UUID may sit anywhere.
+alias UUID = string<36>, pattern = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
+
+// Aliases chain; constraints accumulate down the chain.
+alias EntityId = UUID;
+
+// A use site may tighten, never loosen — both bounds apply (intersection).
+alias AddressIndex = uint8, range(0, 9);
+
+// A use site may tighten an alias, never loosen it — both bounds apply.
+// See core/struct.sodl for that in a field.
+alias PrimaryIndex = AddressIndex, range(0, 4);

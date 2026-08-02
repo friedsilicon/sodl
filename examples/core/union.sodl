@@ -1,0 +1,21 @@
+// union — D12. A tagged choice. The tag type is the wire discriminant and
+// tag values are written, never inferred from position.
+
+struct Postal {
+    line1: string<64>;
+    zip:   string<16>;
+}
+
+// Every member is fixed-size (D16), so the union is too and may appear in
+// a fixed-length list. A bare `string`, `bytes`, or `tlv<T>` member would
+// make it variable-tailed and is rejected.
+union ContactMethod : uint8 {
+    Email  = 1 -> string<254>;
+    Phone  = 2 -> string<32>;
+    Post   = 3 -> Postal;
+}
+
+struct Person {
+    reach:     ContactMethod;
+    fallbacks: [ContactMethod; 2];
+}

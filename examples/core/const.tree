@@ -1,0 +1,6 @@
+program
+  const MAX_LOGIN_ATTEMPTS: uint8 = 5
+  const DEFAULT_THEME: string = "light"
+  const RETRY_ENABLED: bool = true
+  const TAG_MASK: uint16 = 255
+  const SCALE_FACTOR: float32 = 1.5

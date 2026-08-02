@@ -109,12 +109,27 @@ fn constraint<'a>() -> impl Parser<'a, &'a str, Constraint, Extra<'a>> + Clone {
 }
 
 fn type_ref<'a>() -> impl Parser<'a, &'a str, Type, Extra<'a>> + Clone {
-    tok(text::ident()
-        .then(just('.').ignore_then(text::ident()).or_not())
-        .map(|(head, tail): (&str, Option<&str>)| match tail {
-            Some(t) => Type::Qualified(head.to_string(), t.to_string()),
+    // `name`, `name.name`, or `name<arg>`. The three are distinguished by
+    // one token of lookahead; none is resolved here.
+    let qualified = just('.').ignore_then(text::ident()).map(Suffix::Qualified);
+    let applied = text::ident()
+        .or(text::int(10))
+        .delimited_by(just('<'), just('>'))
+        .map(Suffix::Applied);
+
+    tok(text::ident().then(choice((qualified, applied)).or_not()).map(
+        |(head, suffix): (&str, Option<Suffix>)| match suffix {
+            Some(Suffix::Qualified(t)) => Type::Qualified(head.to_string(), t.to_string()),
+            Some(Suffix::Applied(a)) => Type::Applied(head.to_string(), a.to_string()),
             None => Type::Named(head.to_string()),
-        }))
+        },
+    ))
+}
+
+#[derive(Clone)]
+enum Suffix<'a> {
+    Qualified(&'a str),
+    Applied(&'a str),
 }
 
 /// `const NAME: TYPE = VALUE;`
@@ -248,6 +263,24 @@ mod tests {
                     Bound::Literal(Literal::Int(0)),
                     Bound::ConstRef("MAX_LOGIN".into()),
                 )
+        ));
+    }
+
+    #[test]
+    fn parses_bounded_string() {
+        let decls = parse("alias Name = string<32>;").expect("should parse");
+        assert!(matches!(
+            &decls[0],
+            Decl::Alias(a) if a.ty == Type::Applied("string".into(), "32".into())
+        ));
+    }
+
+    #[test]
+    fn parses_temporal_type() {
+        let decls = parse("alias When = timestamp<ms>;").expect("should parse");
+        assert!(matches!(
+            &decls[0],
+            Decl::Alias(a) if a.ty == Type::Applied("timestamp".into(), "ms".into())
         ));
     }
 

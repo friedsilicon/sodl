@@ -1,0 +1,4 @@
+// E007: an alias chain must terminate.
+alias A = B;
+alias B = C;
+alias C = A;

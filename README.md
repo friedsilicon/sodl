@@ -30,15 +30,16 @@ Endpoint local = {
 spec/           the language definition
   SODL_Specification.md   core spec — normative
   SODL_Extensions.md      interop logical types, layered on core — normative
+  CAPABILITY_MATRIX.md    per-target construct mapping — non-normative
   sodl.ebnf               grammar — normative
   DECISIONS.md            why the language is shaped this way
   PROPOSALS.md            constructs under consideration — non-normative
   Primer.md               introduction by example — non-normative
   TODO.md                 known gaps, bugs, and the toolchain plan
   CAPABILITY_MATRIX.md    per-target construct mapping — non-normative
-examples/       example.sodl (core), advanced-examples.sodl (constraints,
-                TLV, bytes, qualified names, instance data)
-scripts/        check-sodl.py — static checks the grammar cannot express
+examples/       the corpus — core/, layout/, extensions/, integration/,
+                and invalid/ (must-fail cases). See examples/README.md
+scripts/        check-sodl.py (static checks), run-checks.py (suite runner)
 crates/sodl/    the toolchain (Rust) — parser, IR, backends. Skeleton only.
 CLAUDE.md       working conventions: what is normative, what a change touches
 ```
@@ -58,7 +59,7 @@ basic-type collisions. It reads concrete syntax by regex rather than
 parsing; a real front end will check these on the AST.
 
 ```
-scripts/check-sodl.py          # defaults to the examples/ corpus
+scripts/run-checks.py          # valid corpus must pass; invalid must fail
 ```
 
 ## Status

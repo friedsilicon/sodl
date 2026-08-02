@@ -1,0 +1,33 @@
+// The ordering rule — D16. Variable-length fields go last, so every
+// declaration has a fixed prefix whose offsets are known statically.
+
+packed struct Frame {
+    version: uint8;         // offset 0  — fixed prefix
+    id:      [uint8; 16];   // offset 1
+    crc:     uint32;        // offset 17
+    payload: bytes;         // variable — must come last
+}
+
+// Several variable fields may share the trailing region. They decode in
+// order; only the first has a static offset.
+packed struct Document {
+    docId:   [uint8; 16];
+    title:   string;        // variable
+    body:    string;        // variable
+    attach:  bytes;         // variable
+}
+
+// Variable-tailedness is transitive: Document holds a bare `string`, so
+// Document itself is variable-tailed and may only appear last.
+packed struct Envelope {
+    sentAt:  timestamp<ms>;
+    seq:     uint32;
+    doc:     Document;      // variable-tailed — last
+}
+
+// A bounded string is fixed-size, so it does not trigger the rule and may
+// sit anywhere.
+packed struct Labelled {
+    name:  string<32>;      // fixed
+    count: uint16;          // legal after a bounded string
+}

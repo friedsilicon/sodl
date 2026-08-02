@@ -17,6 +17,7 @@
 
 pub mod ast;
 pub mod parser;
+pub mod tree;
 
 /// Crate version, from Cargo.
 pub fn version() -> &'static str {

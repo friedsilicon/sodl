@@ -1,0 +1,4 @@
+// E016: the unit must be one of s, ms, us, ns.
+packed struct S {
+    at: time<weeks>;
+}

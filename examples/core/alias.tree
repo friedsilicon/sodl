@@ -1,0 +1,10 @@
+program
+  alias Port = uint16
+    range 1 .. 65535
+  alias UUID = string<36>
+    pattern "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+  alias EntityId = UUID
+  alias AddressIndex = uint8
+    range 0 .. 9
+  alias PrimaryIndex = AddressIndex
+    range 0 .. 4

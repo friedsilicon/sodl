@@ -1,0 +1,8 @@
+// E003: a keymap's source key and target object must both be declared.
+object Thing {
+    thingId: uint32, key;
+}
+
+keymap NoSuchKey:Thing {
+    thingId -> thingId
+}, primary, name = "Broken";

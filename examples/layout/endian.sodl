@@ -1,0 +1,24 @@
+// Byte order — D16. Declared per declaration, little-endian by default,
+// and independent of padding.
+
+// Network protocols are big-endian by convention.
+bigEndian packed struct IpHeader {
+    versionIhl:  uint8;
+    dscpEcn:     uint8;
+    totalLength: uint16;
+    identifier:  uint16;
+}
+
+// Explicitly little-endian — same as omitting it.
+littleEndian packed struct LocalRecord {
+    seq:   uint32;
+    value: int64;
+}
+
+// Byte order combines with alignment. A declaration whose order differs
+// from the host cannot be overlaid without copying; that cost falls on
+// declarations describing a foreign protocol.
+bigEndian fixed struct WireStruct {
+    kind:  uint8;
+    size:  uint32;
+}

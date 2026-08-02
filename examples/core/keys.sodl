@@ -1,0 +1,46 @@
+// Identity — D6. Three pieces for one idea: the prop marks a field as part
+// of an identity, the key names an identity, the keymap binds it to what it
+// addresses.
+
+alias UUID = string<36>;
+
+object Account {
+    accountId: UUID, assigned = counter, key;
+    email:     string<254>, key;
+    balance:   int64;
+}
+
+// Primary access path — how an Account is created.
+key AccountId {
+    accountId: UUID;
+}
+
+keymap AccountId:Account {
+    accountId -> accountId
+}, primary, name = "AccountLookup";
+
+// Secondary access path — retrieval only.
+key AccountEmail {
+    email: string<254>;
+}
+
+keymap AccountEmail:Account {
+    email -> email
+}, name = "EmailLookup";
+
+// A composite key: both values together address one row.
+object Membership {
+    accountId: UUID, key;
+    groupId:   UUID, key;
+    joinedOn:  date;
+}
+
+key MembershipKey {
+    accountId: UUID;
+    groupId:   UUID;
+}
+
+keymap MembershipKey:Membership {
+    accountId -> accountId,
+    groupId   -> groupId
+}, primary, name = "MembershipLookup";

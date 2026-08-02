@@ -1,0 +1,12 @@
+// E017: `key` implies `required`; writing both is an error.
+object Account {
+    accountId: uint32, key, required;
+}
+
+key AccountId {
+    accountId: uint32;
+}
+
+keymap AccountId:Account {
+    accountId -> accountId
+}, primary, name = "Lookup";

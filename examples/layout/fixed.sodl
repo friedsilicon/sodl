@@ -1,0 +1,23 @@
+// fixed — D16. Natural alignment, so the type can be overlaid on a C
+// struct. Contrast examples/layout/packed.sodl, which has the same fields.
+
+fixed struct Header {
+    version: uint8;      // offset 0
+    flags:   uint16;     // offset 2  — one pad byte after version
+    length:  uint32;     // offset 4
+}
+
+// fixed(N) caps alignment at N, as #pragma pack(N) does. packed is
+// exactly fixed(1).
+fixed(4) struct Capped {
+    tag:   uint8;
+    wide:  uint64;       // aligned to 4, not 8
+}
+
+// Padding stated rather than inferred: `reserved` occupies bytes but
+// carries no value, and `align` raises one field's boundary.
+fixed struct Explicit {
+    kind:  uint8;
+    _pad:  [uint8; 3], reserved;
+    count: uint32, align = 8;
+}

@@ -1,0 +1,6 @@
+// E009: tag values are unique within a union, and must fit the tag type.
+union U : uint8 {
+    A = 1 -> uint32;
+    B = 1 -> uint16;
+    C = 300 -> uint8;
+}

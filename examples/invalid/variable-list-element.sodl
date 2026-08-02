@@ -1,0 +1,4 @@
+// E013: a fixed list needs a fixed-size element type.
+packed struct Holder {
+    tags: [string; 4];
+}

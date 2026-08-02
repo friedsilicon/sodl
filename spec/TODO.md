@@ -39,6 +39,10 @@ lint cannot match a literal against an alias's pattern.
   Remaining: every other declaration. `D5` above is exactly the kind of bug
   that surfaces the moment the dotted-name productions are attempted — the
   parser keeps dotted names unresolved on purpose.
+- **Golden output loses the literal's radix.** `0xFF` renders as `255`: the
+  AST stores a value, not the form it was written in. Harmless for checking,
+  but a schema round-trip that re-emits SODL would silently rewrite hex
+  literals as decimal. Decide whether the AST keeps the radix.
 - **Move checks off regex.** `check-sodl.py` reads concrete syntax by regex.
   It enforces D6 and catches defects 17/19, but union members, instance
   types, and anything scope-dependent need an AST. It now validates each

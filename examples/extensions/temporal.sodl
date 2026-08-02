@@ -1,0 +1,25 @@
+// Temporal types — D17. Extension types, defined in SODL_Extensions.md,
+// not in core. The unit is always written.
+
+packed struct Reading {
+    // An instant: the same value means the same moment everywhere.
+    observedAt:  timestamp<ms>;
+    // Higher resolution.
+    capturedAt:  timestamp<us>;
+    // A wall-clock reading with no zone — its instant depends on a zone
+    // carried elsewhere. Not interconvertible with `timestamp`.
+    alarmAt:     localTimestamp<s>;
+    // A calendar date, not an instant. int32 days since the epoch.
+    recordedOn:  date;
+    // Time of day since midnight.
+    dueAt:       time<ms>;
+    // months, days, milliseconds — kept separate, never normalized.
+    retention:   duration;
+}
+
+// All temporal types are fixed-size, so they may appear in a fixed list
+// and in a union.
+packed struct Schedule {
+    slots: [time<ms>; 24];
+    marks: [timestamp<ms>; 4];
+}

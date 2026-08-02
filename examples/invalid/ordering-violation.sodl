@@ -1,0 +1,5 @@
+// E012: a fixed-size field may not follow a variable-length one.
+packed struct Bad {
+    name: string;
+    age:  uint8;
+}

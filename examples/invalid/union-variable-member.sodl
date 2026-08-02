@@ -1,0 +1,5 @@
+// E010: a union member must be fixed-size.
+union U : uint8 {
+    A = 1 -> string;
+    B = 2 -> bytes;
+}

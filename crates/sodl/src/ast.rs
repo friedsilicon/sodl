@@ -18,6 +18,10 @@ pub enum Literal {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     Named(String),
+    /// A parameterized type written `name<arg>` — `string<36>` (D16),
+    /// `timestamp<ms>` (D17). The argument is kept as written; whether it
+    /// is a valid size or unit is a resolution question.
+    Applied(String, String),
     /// `Crypto.SHA256Hash` — a qualified type (D5).
     Qualified(String, String),
 }

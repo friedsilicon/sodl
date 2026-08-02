@@ -1,0 +1,40 @@
+// Instance data — D7. A .sodl file carries schema AND populated values.
+
+alias UUID = string<36>;
+
+enum Tier : uint8 {
+    Free = 1,
+    Paid = 2
+}
+
+struct Limits {
+    requests: uint32;
+    burst:    uint16;
+}
+
+object Plan {
+    planId: UUID, key;
+    name:   string<32>;
+    tier:   Tier, default = Tier.Free;
+    limits: Limits;
+}
+
+key PlanKey {
+    planId: UUID;
+}
+
+keymap PlanKey:Plan {
+    planId -> planId
+}, primary, name = "PlanLookup";
+
+// Values are checked against the declaration: structurally, and against
+// every constraint and `required` prop. Object literals nest.
+Plan starter = {
+    planId: "018f3a2b-0000-7000-8000-00000000000f",
+    name:   "Starter",
+    tier:   Tier.Free,
+    limits: {
+        requests: 1000,
+        burst:    50
+    }
+};

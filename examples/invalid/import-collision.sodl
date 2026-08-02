@@ -1,0 +1,2 @@
+// E005: importing a name that collides with a BasicType or ExtensionType.
+import { bytes, date } from "somewhere"

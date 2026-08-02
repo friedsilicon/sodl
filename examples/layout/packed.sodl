@@ -1,0 +1,15 @@
+// packed — D16, and the default. No padding: each field begins where the
+// previous one ended, so the bytes are identical on every platform.
+
+packed struct WireHeader {
+    version: uint8;      // offset 0
+    flags:   uint16;     // offset 1  — no pad byte
+    length:  uint32;     // offset 3
+}
+
+// Unmarked means packed. These two have the same layout.
+struct AlsoPacked {
+    version: uint8;
+    flags:   uint16;
+    length:  uint32;
+}

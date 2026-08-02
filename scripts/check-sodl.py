@@ -19,10 +19,33 @@ from pathlib import Path
 
 # scripts/ -> repo root -> examples/. Lets the no-arg default work from any cwd.
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_CORPUS = [
-    str(ROOT / "examples" / "example.sodl"),
-    str(ROOT / "examples" / "advanced-examples.sodl"),
-]
+# Every .sodl in the corpus except examples/invalid/, which is expected to
+# fail and is driven by scripts/run-checks.py instead.
+DEFAULT_CORPUS = sorted(
+    str(p)
+    for p in (ROOT / "examples").rglob("*.sodl")
+    if "invalid" not in p.parts
+)
+
+# Error codes -- stable identifiers so tests can assert which rule fired
+# without depending on message wording. Numbers follow the STATIC CHECKS
+# list at the foot of spec/sodl.ebnf; codes above E016 are rules stated in
+# the spec but not in that numbered list.
+CODES = {
+    "E001": "key or keymap references a field not annotated `key` (check 1)",
+    "E002": "`key` field reached by no key declaration or keymap (check 2)",
+    "E003": "keymap names an undeclared key or object (check 3)",
+    "E005": "import collides with a BasicType or ExtensionType (check 5)",
+    "E006": "const declaration or const reference is invalid (check 6)",
+    "E007": "alias chain contains a cycle (check 7)",
+    "E009": "union tag is out of range, duplicated, or wrongly typed (check 9)",
+    "E010": "union member type is not fixed-size (check 10)",
+    "E012": "fixed-size field follows a variable-length one (check 12)",
+    "E013": "fixed list has a variable-length element type (check 13)",
+    "E016": "temporal unit missing or invalid (check 16)",
+    "E017": "`required` is redundant on a `key` field (D6 rule 1)",
+    "E018": "object declares no `key` field (D6 rule 3)",
+}
 
 BASIC_TYPES = {
     "uint8", "uint16", "uint32", "uint64",
@@ -69,36 +92,43 @@ def consts(src):
             elif re.fullmatch(r"-?[0-9]+", val):
                 n = int(val)
             else:
-                errs.append(f"const {name}: `{val}` is not an integer literal for `{ty}`")
+                errs.append(f"E006 const {name}: `{val}` is not an integer literal for `{ty}`")
                 continue
             lo, hi = INT_RANGES[ty]
             if not lo <= n <= hi:
-                errs.append(f"const {name}: {val} out of range for `{ty}` [{lo}, {hi}]")
+                errs.append(f"E006 const {name}: {val} out of range for `{ty}` [{lo}, {hi}]")
             decls[name] = "number"
         elif ty in FLOAT_TYPES:
             if not re.fullmatch(r"-?[0-9]+(\.[0-9]+)?", val):
-                errs.append(f"const {name}: `{val}` is not a numeric literal for `{ty}`")
+                errs.append(f"E006 const {name}: `{val}` is not a numeric literal for `{ty}`")
             decls[name] = "number"
         elif ty == "string":
             if not re.fullmatch(r'"[^"]*"', val):
-                errs.append(f"const {name}: `{val}` is not a string literal")
+                errs.append(f"E006 const {name}: `{val}` is not a string literal")
             decls[name] = "other"
         elif ty == "bool":
             if val not in ("true", "false"):
-                errs.append(f"const {name}: `{val}` is not a bool literal")
+                errs.append(f"E006 const {name}: `{val}` is not a bool literal")
             decls[name] = "other"
         elif ty == "bytes" or ty in EXTENSION_TYPES:
-            errs.append(f"const {name}: `{ty}` has no literal form (D10)")
+            errs.append(f"E006 const {name}: `{ty}` has no literal form (D10)")
             decls[name] = "other"
         else:
-            errs.append(f"const {name}: type `{ty}` is not a basic type (D10)")
+            errs.append(f"E006 const {name}: type `{ty}` is not a basic type (D10)")
             decls[name] = "other"
     return errs, decls
 
 
+# D16 layout modifiers may precede a declaration keyword. Without this,
+# `packed struct Foo` does not match `^struct` and the whole declaration is
+# invisible to every check below -- which is exactly what happened, and what
+# examples/invalid/ordering-violation.sodl now guards against.
+MODS = r"(?:(?:packed|fixed(?:\s*\(\s*\d+\s*\))?|littleEndian|bigEndian)\s+)*"
+
+
 def blocks(src, kw):
-    """Yield (name, body) for each `kw Name { ... }` declaration."""
-    for m in re.finditer(rf"^{kw} (\w+)[^{{]*\{{(.*?)^\}}", src, re.S | re.M):
+    """Yield (name, body) for each `[modifiers] kw Name { ... }` declaration."""
+    for m in re.finditer(rf"^{MODS}{kw}\s+(\w+)[^{{]*\{{(.*?)^\}}", src, re.S | re.M):
         yield m.group(1), m.group(2)
 
 
@@ -125,7 +155,7 @@ def type_graph(src):
     for kw in ("struct", "object"):
         for name, body in blocks(src, kw):
             aggregates[name] = [t for _, t in fields(body)]
-    for m in re.finditer(r"^union (\w+)\s*:[^{]*\{(.*?)^\}", src, re.S | re.M):
+    for m in re.finditer(rf"^{MODS}union\s+(\w+)\s*:[^{{]*\{{(.*?)^\}}", src, re.S | re.M):
         members = []
         for line in m.group(2).splitlines():
             line = re.sub(r"//.*", "", line)
@@ -184,7 +214,7 @@ def check_layout(src):
                     seen_var = seen_var or fname
                 elif seen_var:
                     errs.append(
-                        f"{name}.{fname}: fixed-size field follows variable-length "
+                        f"E012 {name}.{fname}: fixed-size field follows variable-length "
                         f"`{seen_var}` (D16 ordering rule, static check 12)"
                     )
 
@@ -193,7 +223,7 @@ def check_layout(src):
         elem = m.group(1).strip()
         if is_variable(elem, aliases, aggregates):
             errs.append(
-                f"[{elem}; N]: element type is variable-length; a fixed list "
+                f"E013 [{elem}; N]: element type is variable-length; a fixed list "
                 f"needs computable offsets (D16, static check 13)"
             )
     return errs
@@ -215,15 +245,15 @@ def check(path):
         for op in (a.strip(), b.strip()):
             if re.fullmatch(r"[A-Za-z_]\w*", op):
                 if op not in const_decls:
-                    errs.append(f"range bound `{op}` names no declared const (D10)")
+                    errs.append(f"E006 range bound `{op}` names no declared const (D10)")
                 elif const_decls[op] != "number":
-                    errs.append(f"range bound `{op}` is not a numeric const (D10)")
+                    errs.append(f"E006 range bound `{op}` is not a numeric const (D10)")
 
     objects = {n: dict(fields(b)) for n, b in blocks(src, "object")}
     keydecls = {n: dict(fields(b)) for n, b in blocks(src, "key")}
 
     keymaps = []  # (srckey, target, {lhs -> rhs})
-    for m in re.finditer(r"^keymap (\w+):(\w+)\s*\{(.*?)^\}", src, re.S | re.M):
+    for m in re.finditer(r"^keymap\s+(\w+)\s*:\s*(\w+)\s*\{(.*?)^\}", src, re.S | re.M):
         pairs = dict(re.findall(r"^\s*(\w+)\s*->\s*([\w.]+)", m.group(3), re.M))
         keymaps.append((m.group(1), m.group(2), pairs))
 
@@ -238,14 +268,14 @@ def check(path):
         for f, props in flds.items():
             if re.search(r"\bkey\b", props) and re.search(r"\brequired\b", props):
                 errs.append(
-                    f"{obj}.{f}: `required` is redundant on a key field "
+                    f"E017 {obj}.{f}: `required` is redundant on a key field "
                     f"(D6 rule 1: key implies required)"
                 )
 
     # --- D6 rule 3: every object needs at least one key field.
     for obj in objects:
         if not keyed[obj]:
-            errs.append(f"{obj}: no `key` field (D6 rule 3: every object needs one)")
+            errs.append(f"E018 {obj}: no `key` field (D6 rule 3: every object needs one)")
 
     # --- D6 rule 2: every key field used by >=1 key decl AND >=1 keymap.
     for obj, kfields in keyed.items():
@@ -271,35 +301,35 @@ def check(path):
             by_keymap |= set(keydecls.get(srckey, {})) & kfields
 
         for f in sorted(kfields - by_keydecl):
-            errs.append(f"{obj}.{f}: key field named by no `key` declaration (D6 rule 2)")
+            errs.append(f"E002 {obj}.{f}: key field named by no `key` declaration (D6 rule 2)")
         for f in sorted(kfields - by_keymap):
-            errs.append(f"{obj}.{f}: key field used by no `keymap` (D6 rule 2)")
+            errs.append(f"E002 {obj}.{f}: key field used by no `keymap` (D6 rule 2)")
 
     # --- D6: a key/keymap may only reference `key`-annotated fields.
     for srckey, tgt, pairs in keymaps:
         if tgt not in objects:
-            errs.append(f"keymap {srckey}:{tgt}: target object `{tgt}` not declared")
+            errs.append(f"E003 keymap {srckey}:{tgt}: target object `{tgt}` not declared")
             continue
         for lhs in pairs:
             if lhs in objects[tgt] and lhs not in keyed[tgt]:
                 errs.append(
-                    f"keymap {srckey}:{tgt}: `{lhs}` referenced but not "
+                    f"E001 keymap {srckey}:{tgt}: `{lhs}` referenced but not "
                     f"annotated `key` on {tgt}"
                 )
 
     # --- defect 17: keymaps must reference declared keys.
     for srckey, tgt, _ in keymaps:
         if srckey not in keydecls:
-            errs.append(f"keymap {srckey}:{tgt}: source key `{srckey}` not declared")
+            errs.append(f"E003 keymap {srckey}:{tgt}: source key `{srckey}` not declared")
 
     # --- D12: discriminated unions. Tag type is unsigned; tags fit and are
     # unique; member names are unique; members are fixed-size (no bytes/tlv).
     unsigned_bits = {"uint8": 8, "uint16": 16, "uint32": 32, "uint64": 64}
-    for m in re.finditer(r"^union (\w+)\s*:\s*([^\s{]+)\s*\{(.*?)^\}", src, re.S | re.M):
+    for m in re.finditer(rf"^{MODS}union\s+(\w+)\s*:\s*([^\s{{]+)\s*\{{(.*?)^\}}", src, re.S | re.M):
         uname, tagtype = m.group(1), m.group(2)
         bits = unsigned_bits.get(tagtype)
         if bits is None:
-            errs.append(f"union {uname}: tag type `{tagtype}` is not an unsigned integer (D12)")
+            errs.append(f"E009 union {uname}: tag type `{tagtype}` is not an unsigned integer (D12)")
         seen_names, seen_tags = set(), {}
         for line in m.group(3).splitlines():
             line = re.sub(r"//.*", "", line)
@@ -308,20 +338,20 @@ def check(path):
                 continue
             mname, tag, mtype = mm.group(1), mm.group(2), mm.group(3).strip()
             if mname in seen_names:
-                errs.append(f"union {uname}: duplicate member name `{mname}` (D12)")
+                errs.append(f"E009 union {uname}: duplicate member name `{mname}` (D12)")
             seen_names.add(mname)
             tagval = int(tag, 0)
             if tagval in seen_tags:
                 errs.append(
-                    f"union {uname}: tag {tag} on `{mname}` duplicates `{seen_tags[tagval]}` (D12)"
+                    f"E009 union {uname}: tag {tag} on `{mname}` duplicates `{seen_tags[tagval]}` (D12)"
                 )
             else:
                 seen_tags[tagval] = mname
             if bits is not None and tagval >= (1 << bits):
-                errs.append(f"union {uname}.{mname}: tag {tag} does not fit in {tagtype} (D12)")
+                errs.append(f"E009 union {uname}.{mname}: tag {tag} does not fit in {tagtype} (D12)")
             if _is_var_member(mtype, src):
                 errs.append(
-                    f"union {uname}.{mname}: member type `{mtype}` is variable-length; "
+                    f"E010 union {uname}.{mname}: member type `{mtype}` is variable-length; "
                     f"union members must be fixed-size (D12)"
                 )
 
@@ -333,10 +363,10 @@ def check(path):
     ):
         kind, has_unit, unit = m.group(1), m.group(2), m.group(3)
         if not has_unit:
-            errs.append(f"`{kind}` requires a unit, e.g. `{kind}<ms>` (D17, static check 16)")
+            errs.append(f"E016 `{kind}` requires a unit, e.g. `{kind}<ms>` (D17, static check 16)")
         elif unit not in TIME_UNITS:
             errs.append(
-                f"`{kind}<{unit}>`: unit must be one of s, ms, us, ns (D17, static check 16)"
+                f"E016 `{kind}<{unit}>`: unit must be one of s, ms, us, ns (D17, static check 16)"
             )
 
     # --- D16 (static checks 12, 13): layout ordering and fixed lists.
@@ -346,10 +376,10 @@ def check(path):
     for m in re.finditer(r"^import\s*\{([^}]*)\}", src, re.M):
         for name in (n.strip() for n in m.group(1).split(",")):
             if name in BASIC_TYPES:
-                errs.append(f"import: `{name}` collides with a BasicType (static check 5)")
+                errs.append(f"E005 import: `{name}` collides with a BasicType (static check 5)")
             elif name in EXTENSION_TYPES or name in EXTENSION_PARAMETRIC:
                 errs.append(
-                    f"import: `{name}` collides with an ExtensionType (D17, static check 5)"
+                    f"E005 import: `{name}` collides with an ExtensionType (D17, static check 5)"
                 )
 
     # --- D11 (static check 7): alias chains must terminate; no cycles.
@@ -361,7 +391,7 @@ def check(path):
         while cur in aliases:
             if cur in seen:
                 loop = " -> ".join(seen[seen.index(cur):] + [cur])
-                errs.append(f"alias `{start}`: cycle {loop} (static check 7)")
+                errs.append(f"E007 alias `{start}`: cycle {loop} (static check 7)")
                 break
             seen.append(cur)
             cur = aliases[cur]

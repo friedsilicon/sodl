@@ -1,0 +1,29 @@
+// enum — a set of named integers. D17: an enum declares its width,
+// defaulting to uint32.
+
+enum UserRole : uint8 {
+    Admin  = 1,
+    Editor = 2,
+    Viewer = 3,
+    Guest  = 4
+}
+
+// Hex values are legal (defect 11). These are bit flags.
+enum TransactionStatus : uint8 {
+    Pending    = 0x01,
+    Verified   = 0x02,
+    Processing = 0x04,
+    Completed  = 0x08
+}
+
+// Width omitted — defaults to uint32.
+enum ErrorClass {
+    Transient = 1,
+    Permanent = 2
+}
+
+struct Session {
+    role:   UserRole, default = UserRole.Guest;
+    status: TransactionStatus;
+    err:    ErrorClass;
+}
