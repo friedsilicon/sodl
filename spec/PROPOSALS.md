@@ -291,3 +291,47 @@ exchanged with anything.
 - Whether this subsumes or overlaps P10 (`json` as a *field type*). They are
   distinct — that is a type, this is a format — but the encoding rules
   should agree.
+
+## P14 — import refinement (override on import)
+
+Import a declared type and narrow it locally, without editing the source
+schema or declaring a new type.
+
+```sodl
+import { Order } from "shared/order.sodl";
+
+// This party's copy: version is pinned; the shared schema leaves it open.
+refine Order {
+    version: strict = 1;
+}
+```
+
+**Motivation.** `strict` marks a field constant (see the strict resolution).
+But constancy is often *party-relative*: a producer talking to several
+consumers leaves a field variable, while each consumer pins it to the value
+it accepts. Both views are correct simultaneously, so the pin cannot live in
+the shared declaration. The intended workflow — each party keeps its own
+`.sodl` importing the shared schema and overrides its copy — has no
+mechanism today: imports bind names verbatim and nothing may modify them.
+
+**Open questions.**
+
+- Syntax and keyword: `refine`, `override`, `extend`, or a prop on the
+  import statement itself.
+- **Narrowing only.** A refinement should only be able to *restrict* — pin a
+  value, tighten a `range`, make an `optional` field `required`. Widening,
+  retyping, adding, or removing a field would fork the type rather than
+  refine it, and must be a static error. Enumerate exactly which props may
+  be refined.
+- Wire compatibility. Refinement must not change the layout — a refined type
+  stays binary-identical to its base, which holds if refinement is
+  restriction-only and `strict` fields are transmitted normally.
+- Is the refined type the *same* type (same name, same wire format, narrower
+  validation) or a distinct subtype? Same-type is simpler and matches the
+  "my copy" mental model.
+- Whether refinements compose (A refines B refines C) and whether two
+  refinements of one type may coexist in a file.
+- Whether a refinement may target a locally declared type or only an
+  imported one.
+- Does the toolchain need to check a refinement against its base at import
+  time — requiring real import resolution, which is still an open TODO.
