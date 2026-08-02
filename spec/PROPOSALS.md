@@ -336,3 +336,108 @@ mechanism today: imports bind names verbatim and nothing may modify them.
   imported one.
 - Does the toolchain need to check a refinement against its base at import
   time — requiring real import resolution, which is still an open TODO.
+
+---
+
+P15–P16 come out of the spec audit and the C-interop requirement. They are
+paired: P16's untagged form is only meaningful inside P15's fixed tier.
+
+## P15 — two-tier type system: `fixed` / `packed` vs free
+
+A type is either **layout-guaranteed** or it is not, and the language says
+which.
+
+```sodl
+fixed struct Header {        // natural alignment + padding, C ABI layout
+    version: uint8;
+    flags:   uint16;
+    id:      [uint8; 16];
+}
+
+packed struct WireHeader {   // no padding, ABI-independent
+    version: uint8;
+    flags:   uint16;
+}
+
+struct Post {                // unmarked: free tier, no layout guarantee
+    title: string;
+    tags:  [string];
+}
+```
+
+**Motivation.** The spec currently claims a fixed layout it does not have
+(see the union bug in `TODO.md`): `string` is variable-length yet legal as a
+union member and inside a "fixed-length" list. Meanwhile the primary
+direction, X → SODL, needs maps and variable-length lists (P4, P5), which
+are variable by nature. The two goals are both real and cannot both be
+global. Splitting them makes each honest: the fixed tier is byte-stable and
+overlays existing C structs and unions; the free tier is an ordinary schema
+language.
+
+Tiering is by **explicit keyword only** — nothing is fixed unless declared
+so, and the marker is statically checked, so adding a `string` field to a
+`fixed` type is a compile error rather than a silent demotion.
+
+**Open questions.**
+
+- Bounded strings. The fixed tier needs *some* string: `string<N>` as a new
+  bounded type, or require `[uint8; N]` and leave `string` free-tier only.
+- **Which ABI does `fixed` name?** Natural alignment differs across
+  32/64-bit and across architectures. Pin one target, parameterize the
+  declaration, or define alignment rules in-spec and let backends conform.
+- **Endianness.** A C struct is host-endian; wire formats are usually
+  big-endian. Does `fixed` imply host order (true memcpy compatibility) or a
+  declared order (portability)? These conflict — `packed` may want one and
+  `fixed` the other.
+- Containment: a fixed type must not contain a free type. May a free type
+  contain a fixed one? (Presumably yes.)
+- Enum and union representation width in the fixed tier.
+- Whether D12's union sizing rule (tag + largest member) becomes fixed-tier
+  only, and what a free-tier union's size means.
+- Whether `fixed`/`packed` apply to `object` too, or only `struct`/`union` —
+  objects carry keys and identity, which have no C analogue.
+
+## P16 — externally-discriminated union
+
+A union whose discriminant lives outside it.
+
+```sodl
+fixed struct Message {
+    msgType: uint8;
+    payload: Payload, discriminant = msgType;
+}
+
+union Payload {              // no inline tag; members name selector values
+    Ping = 1 -> PingBody;
+    Pong = 2 -> PongBody;
+}
+```
+
+**Motivation.** A C union carries no discriminant. Existing C code puts the
+selector in a sibling field, or derives it from a rule — if this field is
+*x*, the live member is *y*. D12's mandatory inline tag cannot model that:
+it places the tag *inside* the union, changing the memory image, so a D12
+union can never overlay a real C union. Without this, P15's fixed tier
+cannot express the C code it exists to interoperate with.
+
+**Open questions.**
+
+- Where the binding lives: at the use site as a field prop (as sketched —
+  lets one union serve two structs with different selectors) or on the union
+  declaration.
+- **Selector expressiveness.** Equality against a sibling field only, or
+  general predicates (ranges, multiple fields, computed conditions)? Real C
+  code has all of these; each step up costs the checker a lot.
+- Whether the discriminant may be a `FieldPath` into a nested struct, and
+  whether an enum-typed discriminant is allowed (probably preferred).
+- Exhaustiveness: must every value of the discriminant map to a member? Is
+  there a default or unknown-member case, and is a gap an error?
+- Ordering: must the discriminant field precede the union field in the
+  declaration, so a streaming reader can select before decoding?
+- Relationship to D12. Two union forms, or does the inline tag become
+  optional on one construct? Two forms is clearer but doubles the surface.
+- Instance data: `Member(value)` still identifies the member, but must agree
+  with the discriminant field's own value — a new cross-field static check.
+- Interchange: Avro and Protobuf unions are self-describing, so an
+  externally-discriminated union has to be lowered (probably to the tagged
+  form) on export. Add a capability-matrix row.

@@ -28,6 +28,19 @@ promises structural and constraint matching of instance values, and
 `check-sodl.py` still implements none of it. This needs an AST — the regex
 lint cannot match a literal against an alias's pattern.
 
+**The union fixed-size rule is wrong, and the spec's own example breaks it.**
+Spec 4.5 requires a union member to be fixed-size and excludes only `bytes`
+and `tlv<T>` -- but `string` is variable-length too, is not excluded, is not
+checked (`check-sodl.py` check 10 greps for `bytes`/`tlv` only), and is used
+as a member in both example files (`Email = 1 -> string`). So the conclusion
+that follows -- "a union is itself fixed-size and may appear in a
+fixed-length list" -- is false for `ContactMethod`, the spec's own
+illustration. The same leak runs through lists: `[Address; 3]` is called
+fixed-length while `Address` holds five `string` fields. This is broader
+than the transitive `bytes`/`tlv` hole recorded under Underspecified.
+Resolved by the two-tier split (P15) -- until then, the claim stands
+contradicted.
+
 ## Next steps
 
 - **Make one import resolvable.** D10 pulled `UUID` and `Money` in-file as
