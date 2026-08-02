@@ -133,3 +133,21 @@ SODL:
   a struct that transitively contains a `bytes` or `tlv` field slips through.
   The same transitive hole exists for `[T; N]` lists; both need the AST the
   regex checker doesn't have.
+
+## Program of work
+
+- **Example coverage gaps.** `float32`, `float64`, `int64` now exercised in
+  `example.sodl`. `strict = …` still uncovered — but writing an example
+  needs its semantics decided first (Underspecified), so it is queued for
+  approval, not filled unattended.
+- **avrotize as the conversion hub (→ proposal, pending approval).** Build
+  only SODL ↔ Avro in-tree; delegate Avro ↔ {Parquet, Protobuf, JSON Schema,
+  SQL, Kusto, …} to avrotize (clemensv/avrotize, Python). Collapses the N
+  format backends to one, and pins the capability matrix to Avro's logical
+  types. Open: which conversions avrotize covers losslessly, how to invoke
+  it (subprocess vs library), and where SODL-native constructs (keys, TLV)
+  ride along.
+- **JSON structure support (→ proposal, pending approval).** JSON Schema as a
+  source+target format, and JSON as an instance-data interchange. Interacts
+  with P10 (`json` type) but is distinct — this is whole-schema, that is a
+  field type.

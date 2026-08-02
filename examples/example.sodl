@@ -51,6 +51,9 @@ struct Address {
     state: string;
     zipCode: string;
     country: string;
+    latitude: float64;
+    longitude: float64;
+    elevationMeters: float32;
 }
 
 // Key for User Profile.
@@ -138,6 +141,7 @@ object Organization {
     domain: string;
     foundedDate: Timestamp;
     status: string;
+    employeeCount: int64;
 }
 
 // Membership Object.
@@ -184,7 +188,8 @@ Organization acme = {
     orgId: "018f3a2b-0000-7000-8000-000000000001",
     orgName: "Acme Corporation",
     domain: "acme.example",
-    status: "active"
+    status: "active",
+    employeeCount: 350
 };
 
 UserAccount rootUser = {
