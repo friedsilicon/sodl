@@ -398,6 +398,16 @@ field is a compile error rather than a silent demotion to prefix-plus-tail.
 
 **Open questions.**
 
+- **Does the ordering rule apply universally, or only to marked types?**
+  This is the load-bearing question. If universal, every declaration gains a
+  fixed prefix — but the current examples violate it in several places:
+  `Address` is all `string`s, so it is variable-tailed, which makes
+  `addresses: [Address; 3]` an illegal array of variable-tailed elements;
+  and `contactMethod: ContactMethod` (whose members are `string`) sits
+  mid-struct in `UserAccount` with fixed fields after it. If the rule binds
+  only `fixed`/`packed` declarations, free-tier types stay unconstrained and
+  the examples stand. Universal is more useful to backends and more
+  disruptive to what exists.
 - **Arrays of variable-tailed types.** `[T; N]` where `T` has a variable
   tail cannot be indexed — element offsets are not computable. Forbid it, or
   admit it as sequential-access-only?
