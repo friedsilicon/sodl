@@ -1,0 +1,10 @@
+[package]
+name = "sodl"
+description = "SODL toolchain: parser, IR, and format/codegen backends."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]

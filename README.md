@@ -24,38 +24,44 @@ Endpoint local = {
 };
 ```
 
-## Repo
+## Layout
 
-| File | |
-|---|---|
-| `SODL_Specification.md` | The spec. Normative. |
-| `sodl.ebnf` | Grammar. Normative. |
-| `DECISIONS.md` | Why the language is shaped this way. |
-| `PROPOSALS.md` | Constructs under consideration. Non-normative. |
-| `TODO.md` | Known gaps and bugs. |
-| `Primer.md` | Introduction, by example. Non-normative. |
-| `example.sodl` | Core constructs. |
-| `advanced-examples.sodl` | Constraints, TLV, `bytes`, qualified names, instance data. |
-| `check-sodl.py` | Static checks the grammar cannot express. |
-| `CLAUDE.md` | Working conventions: which files are normative, what a language change must touch. |
+```
+spec/           the language definition
+  SODL_Specification.md   the spec — normative
+  sodl.ebnf               grammar — normative
+  DECISIONS.md            why the language is shaped this way
+  PROPOSALS.md            constructs under consideration — non-normative
+  Primer.md               introduction by example — non-normative
+  TODO.md                 known gaps, bugs, and the toolchain plan
+examples/       example.sodl (core), advanced-examples.sodl (constraints,
+                TLV, bytes, qualified names, instance data)
+scripts/        check-sodl.py — static checks the grammar cannot express
+crates/sodl/    the toolchain (Rust) — parser, IR, backends. Skeleton only.
+CLAUDE.md       working conventions: what is normative, what a change touches
+```
 
 ## Tooling
 
-There is no parser yet. `check-sodl.py` lints the example files against the
-rules in the spec that EBNF cannot state — key/keymap coherence, redundant
-props, basic-type collisions:
+The toolchain lives in `crates/sodl/` (Rust) and is a skeleton — no parser,
+no code generation yet. The plan is in `spec/TODO.md`, section "Toolchain".
 
 ```
-./check-sodl.py example.sodl advanced-examples.sodl
+cargo test          # requires a Rust toolchain (https://rustup.rs)
 ```
 
-It reads the concrete syntax by regex rather than parsing, and exists to
-keep the examples honest. A real front end would check these on the AST.
+Until the parser exists, `scripts/check-sodl.py` lints the example files
+against the rules EBNF cannot state — key/keymap coherence, redundant props,
+basic-type collisions. It reads concrete syntax by regex rather than
+parsing; a real front end will check these on the AST.
+
+```
+scripts/check-sodl.py          # defaults to the examples/ corpus
+```
 
 ## Status
 
 The grammar and examples were reconciled against a full audit; every defect
-it found is either fixed or recorded as a decision in `DECISIONS.md`. The
-language is specified but not implemented — no parser, no code generation.
-
-Known gaps, including bugs found after that pass, are in `TODO.md`.
+it found is either fixed or recorded as a decision in `spec/DECISIONS.md`.
+The language is specified but not implemented. Known gaps, bugs, and the
+toolchain plan are in `spec/TODO.md`.

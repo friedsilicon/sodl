@@ -1,19 +1,28 @@
 #!/usr/bin/env python3
 """Static checks for SODL sources.
 
-The EBNF in sodl.ebnf defines what parses. It cannot express the rules
-that make a schema coherent -- those live here. See DECISIONS.md (D6, D7)
-and the STATIC CHECKS block at the foot of sodl.ebnf.
+The EBNF in spec/sodl.ebnf defines what parses. It cannot express the rules
+that make a schema coherent -- those live here. See spec/DECISIONS.md (D6,
+D7) and the STATIC CHECKS block at the foot of spec/sodl.ebnf.
 
 This is a lint over the concrete syntax, not a parser: it reads the
 constructs by regex. It exists to keep the example files honest about the
 rules the language claims. A real front end would do this on the AST.
 
-Usage: ./check-sodl.py FILE...   (exit 1 if any check fails)
+Usage: scripts/check-sodl.py FILE...   (exit 1 if any check fails)
+       scripts/check-sodl.py           (defaults to the examples/ corpus)
 """
 
 import re
 import sys
+from pathlib import Path
+
+# scripts/ -> repo root -> examples/. Lets the no-arg default work from any cwd.
+ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_CORPUS = [
+    str(ROOT / "examples" / "example.sodl"),
+    str(ROOT / "examples" / "advanced-examples.sodl"),
+]
 
 BASIC_TYPES = {
     "uint8", "uint16", "uint32", "uint64",
@@ -255,4 +264,4 @@ def main(paths):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:] or ["example.sodl", "advanced-examples.sodl"]))
+    sys.exit(main(sys.argv[1:] or DEFAULT_CORPUS))

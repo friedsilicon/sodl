@@ -194,7 +194,7 @@ into each other.
 
 ## Next
 
-- `example.sodl` — the core constructs end to end
-- `advanced-examples.sodl` — constraints, TLV, `bytes`, instance data
-- `SODL_Specification.md` — the normative rules
-- `DECISIONS.md` — why it's shaped this way
+- `examples/example.sodl` — the core constructs end to end
+- `examples/advanced-examples.sodl` — constraints, TLV, `bytes`, instance data
+- `SODL_Specification.md` — the normative rules (this directory)
+- `DECISIONS.md` — why it's shaped this way (this directory)
