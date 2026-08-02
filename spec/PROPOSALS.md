@@ -424,20 +424,28 @@ lets one language serve both a portable wire format and a C-overlayable one.
 
 **Open questions.**
 
-- **What is the default when neither keyword is written?** Three answers:
-  require one always (most explicit, most noise); default `packed` (a wire
-  format should be deterministic across platforms, and `fixed` is the
-  special case for C overlay); default `fixed` (friendlier to the C-interop
-  use case, but makes the wire format vary by ABI, which is bad for a format
-  whose point is exchange). `packed` looks right for a format that owns its
-  encoding, but this needs deciding, not assuming.
+- ~~Default when neither keyword is written?~~ **Settled: `packed`.** An
+  unmarked declaration has no padding, so its bytes are identical on every
+  platform. `fixed` is the opt-in for overlaying C structs. Rejected:
+  defaulting to `fixed` (would make the wire format vary by ABI, which is
+  wrong for a format whose purpose is exchange) and requiring the keyword
+  always (noise on the common case).
 - **Which ABI does `fixed` name?** Natural alignment differs across
   32/64-bit and across architectures — `uint64` aligns to 8 on most 64-bit
   targets and to 4 on some 32-bit ones. Pin one model in-spec and require
   backends to conform, or parameterize the declaration.
-- **Endianness.** A C struct is host-endian; a wire format usually is not.
-  Does `fixed` imply host order (true zero-copy overlay) and `packed` a
-  declared order? They may need different answers, which is awkward.
+- **Endianness — how much support?** Orthogonal to padding: one declared
+  byte order per declaration, not per field, and not coupled to
+  `fixed`/`packed`. The question is only whether it is declarable at all.
+  Little-endian is the obvious default — every modern host is LE, and every
+  format SODL would displace (Protobuf's fixed widths, Avro, Parquet,
+  FlatBuffers, Cap'n Proto) chose it. Against that: existing network
+  protocols are big-endian by convention, and describing them is the C
+  interop case. Note the cost is not byte-swapping but that **zero-copy
+  overlay is impossible whenever declared order differs from host order** —
+  a big-endian declaration cannot be cast on an LE machine. SBE, the nearest
+  relative, does support per-message byte order, and comes from an industry
+  that constantly speaks other people's protocols.
 - **`bool` and enum widths.** C leaves both implementation-defined. A fixed
   layout must pin them.
 - Bounded strings: `string<N>` is fixed-size and may sit anywhere, including
