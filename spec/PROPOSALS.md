@@ -217,3 +217,77 @@ struct Sample { level: float16; }
 
 - Literal form and precision/range checks.
 - Core `BasicType` or extension-only. Probably extension.
+
+---
+
+P12–P13 are **toolchain** proposals, not language constructs. They add no
+production to `sodl.ebnf`; they decide how the toolchain reaches other
+formats. Listed here because they follow the same TODO → PROPOSAL →
+DECISION process.
+
+## P12 — avrotize as the conversion hub
+
+Build only SODL ↔ Avro in-tree. Delegate Avro ↔ everything else to
+[avrotize](https://github.com/clemensv/avrotize) (Python).
+
+```
+Parquet ─┐                        ┌─ Parquet
+Protobuf ─┼─ avrotize ─ Avro ─ SODL ─ Avro ─ avrotize ─┼─ Protobuf
+JSON Sch ─┘                        └─ JSON Sch, SQL, …
+```
+
+**Motivation.** The naive plan is one backend per format, each direction —
+N backends, each with its own edge cases. avrotize already converts Avro to
+and from Parquet, Protobuf, JSON Schema, XSD, SQL DDL, Kusto, and more. One
+in-tree backend (Avro) buys the whole set, and pins the capability matrix to
+a single well-documented type system instead of N.
+
+**Open questions.**
+
+- Verify the claim. Which conversions does avrotize actually support in each
+  direction, and which are lossy? The hub is only as good as its worst leg —
+  audit before committing.
+- Invocation: subprocess (`avrotize` CLI) from the Rust toolchain, or a
+  documented external step the user runs? Subprocess adds a Python runtime
+  dependency to a Rust toolchain.
+- Two-hop loss. SODL → Avro → Parquet compounds whatever each leg drops.
+  Does the capability matrix track per-leg or end-to-end?
+- Where SODL-native constructs (keys, keymaps, `tlv`, constraints) ride:
+  Avro custom attributes are the only channel, and avrotize must preserve
+  unknown attributes through the second hop. Verify it does.
+- Fallback for what avrotize does not cover, and whether any format
+  eventually earns a direct in-tree backend anyway.
+- Licence and dependency posture of taking it on.
+
+## P13 — JSON: schema and instance interchange
+
+Two distinct capabilities, deliberately proposed together because they share
+a serialization:
+
+1. **JSON Schema** as a source and target format (schema ↔ schema).
+2. **JSON** as an instance-data interchange for SODL's `D7` values.
+
+```
+User user1 = { "userId": "018f…", "role": "Admin" }   // JSON in
+```
+
+**Motivation.** JSON Schema is the most widely deployed schema language and
+a likely X in X → SODL. Separately, SODL already carries instance data
+(D7) but only in its own literal syntax, so populated values cannot be
+exchanged with anything.
+
+**Open questions.**
+
+- Does JSON Schema come via avrotize (P12) or a direct backend? avrotize
+  covers it, but JSON Schema's expressiveness (oneOf, allOf, conditionals,
+  open-ended objects) may not survive the Avro hop.
+- JSON Schema is structurally open (additional properties, no field order,
+  `$ref` graphs) where SODL is closed and fixed-layout. Decide what subset
+  imports cleanly and what is rejected.
+- Instance direction: is JSON an *input* format for instance data, an
+  *output*, or both?
+- How SODL values with no JSON equivalent serialize: `bytes` (base64?),
+  union literals (`Member(v)` → `{"Member": v}`?), `tlv`, fixed lists.
+- Whether this subsumes or overlaps P10 (`json` as a *field type*). They are
+  distinct — that is a type, this is a format — but the encoding rules
+  should agree.
