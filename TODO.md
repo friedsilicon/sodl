@@ -45,6 +45,33 @@ lint cannot match a literal against an alias's pattern.
   checked to *fit* the position — both need the same field-level type
   checking that static check 4 still lacks.
 
+## Toolchain
+
+Direction: a single-language toolchain (no serialized boundary between
+front end and backends). The IR is in-memory typed data; every format and
+codegen backend is a library against it.
+
+- **Serialized IR boundary — deferred, not rejected.** The prior art here
+  was bison/flex → a C++ binary emitting a JSON AST → consumers parsing the
+  JSON. The JSON boundary is worth keeping *as an option*: it lets
+  out-of-tree backends be written in any language against a stable artifact.
+  We are not building it now — a single-language library is simpler and
+  type-safe — but the IR should be serializable so a later `--emit-ir=json`
+  flag is additive, not a rewrite. Revisit when a backend needs to live
+  outside the main toolchain. If added, serialize the *resolved, checked*
+  IR, not the raw parse tree, so consumers inherit semantics rather than
+  re-deriving them.
+
+- **Primary direction is X → SODL.** SODL is the hub; the common workflow is
+  importing an existing Avro / Protobuf / Parquet schema into SODL, not
+  emitting to it. Two consequences: (1) SODL must be a superset of every
+  source format's expressiveness, so X → SODL → X round-trips losslessly —
+  gaps in that superset are SODL design pressure, i.e. new proposals; (2) a
+  per-target capability matrix must record every construct that does *not*
+  round-trip cleanly, its mitigation (Avro logical types, Protobuf custom
+  options, Parquet KV metadata), and — where no mapping exists — the open
+  question. That matrix is the first toolchain deliverable, before code.
+
 ## Underspecified
 
 - **`Timestamp`** — no encoding, no precision, no epoch.
