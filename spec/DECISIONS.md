@@ -268,3 +268,16 @@ The open questions in P3, resolved:
   value (`default = UserRole.Guest`), a union member binds a type and is
   never a value on its own. Collapsing them would burden every enumerand
   with a unit type and cost `enum` its role as a plain constant set.
+
+## D13 — Parser: chumsky (toolchain)
+
+The front end uses `chumsky`, a Rust parser-combinator library, lowering
+directly into the typed AST. Keeps the toolchain single-language (pure
+`cargo`, no JS/C build) and gives first-class error recovery and diagnostics
+— which matter for a hand-authored language.
+
+Rejected: tree-sitter (editor-first — incremental, always produces a tree;
+its JS-grammar/C-output build and CST-not-AST model fit an LSP, not a
+converter — reserved for editor support, see TODO); `pest`/`winnow`/`nom`
+(viable, weaker diagnostics or lower-level); bison/flex and hand-written
+recursive descent (the prior C++/JSON pattern and its all-manual inverse).

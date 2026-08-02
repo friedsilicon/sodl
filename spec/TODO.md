@@ -72,6 +72,13 @@ codegen backend is a library against it.
   options, Parquet KV metadata), and — where no mapping exists — the open
   question. That matrix is the first toolchain deliverable, before code.
 
+- **Editor support — future, separate artifact.** A tree-sitter grammar for
+  syntax highlighting and an LSP for authoring `.sodl` by hand. Tree-sitter
+  is the right tool for this layer (incremental, error-tolerant) but the
+  wrong one for the compiler front end (JS+C build, CST not AST, recovery
+  over rejection — see D13). It would be a second grammar kept in sync with
+  `sodl.ebnf`, not the parser the toolchain uses.
+
 ### Format-interchange gaps
 
 Surfaced by the X → SODL superset requirement. Each construct a source
