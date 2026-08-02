@@ -142,23 +142,12 @@ SODL:
   schema-format home; ride along as custom attributes (Avro), custom options
   (Protobuf), or KV metadata (Parquet). Round-trip through SODL faithfully;
   invisible to native consumers. Acceptable — these are SODL concerns.
-- **Temporal logical types** — Avro / Parquet have date, time, timestamp
-  variants, and duration; SODL has only the underspecified `Timestamp`.
-  Deferred, pending the Timestamp encoding decision (see Underspecified). A
-  candidate for its own proposal once that lands.
+- **Temporal logical types** — landed as D17, in `SODL_Extensions.md`.
+  `timestamp<s>` is the one gap: neither Avro nor Parquet has a
+  second-resolution timestamp, so it maps to an annotated 64-bit integer.
 
 ## Underspecified
 
-- **`Timestamp` has no size — D16 is incomplete without it.** No encoding,
-  no precision, no epoch, and now no width or alignment either. D16 states
-  that every type has a layout and gives an alignment table; `Timestamp` is
-  a BasicType and is absent from it, so the spec currently contradicts
-  itself. This is no longer only an interchange gap (it blocks all four
-  targets) — it is a correctness bug in the layout rules. Deciding the
-  encoding fixes both, and settles most of P8.
-- **`bytes` and bare `string` are absent from the alignment table.** Both
-  are length-prefixed with a `uint32` (D16), so their alignment is
-  presumably 4, but the spec does not say so. Same for `tlv<T>`.
 - **`strict` — flagged for future refinement.** Direction established but
   deliberately not decided: `strict = <literal>` means the value is
   constant and must equal that literal, and the field is still transmitted

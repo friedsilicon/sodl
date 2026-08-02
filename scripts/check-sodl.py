@@ -28,8 +28,14 @@ BASIC_TYPES = {
     "uint8", "uint16", "uint32", "uint64",
     "int8", "int16", "int32", "int64",
     "float32", "float64",
-    "string", "bool", "bytes", "Timestamp",
+    "string", "bool", "bytes",
 }
+
+# D17: extension types (spec/SODL_Extensions.md). Reserved like basic types,
+# and all fixed-size, so none falls under the D16 ordering rule.
+EXTENSION_TYPES = {"date", "duration"}
+EXTENSION_PARAMETRIC = ("timestamp", "localTimestamp", "time")
+TIME_UNITS = {"s", "ms", "us", "ns"}
 
 # Inclusive value ranges for the integer basic types (D10, static check 6).
 INT_RANGES = {
@@ -81,7 +87,7 @@ def consts(src):
             if val not in ("true", "false"):
                 errs.append(f"const {name}: `{val}` is not a bool literal")
             decls[name] = "other"
-        elif ty in ("bytes", "Timestamp"):
+        elif ty == "bytes" or ty in EXTENSION_TYPES:
             errs.append(f"const {name}: `{ty}` has no literal form (D10)")
             decls[name] = "other"
         else:
@@ -319,6 +325,20 @@ def check(path):
                     f"union members must be fixed-size (D12)"
                 )
 
+    # --- D17 (static check 16): a temporal type's unit is written and valid.
+    # Only in type position -- after `:`, `=`, `[`, or `->`. A field may
+    # legitimately be *named* `timestamp`, which is not a type reference.
+    for m in re.finditer(
+        r"(?:[:=\[]|->)\s*(timestamp|localTimestamp|time)\b\s*(<\s*(\w+)\s*>)?", src
+    ):
+        kind, has_unit, unit = m.group(1), m.group(2), m.group(3)
+        if not has_unit:
+            errs.append(f"`{kind}` requires a unit, e.g. `{kind}<ms>` (D17, static check 16)")
+        elif unit not in TIME_UNITS:
+            errs.append(
+                f"`{kind}<{unit}>`: unit must be one of s, ms, us, ns (D17, static check 16)"
+            )
+
     # --- D16 (static checks 12, 13): layout ordering and fixed lists.
     errs += check_layout(src)
 
@@ -327,6 +347,10 @@ def check(path):
         for name in (n.strip() for n in m.group(1).split(",")):
             if name in BASIC_TYPES:
                 errs.append(f"import: `{name}` collides with a BasicType (static check 5)")
+            elif name in EXTENSION_TYPES or name in EXTENSION_PARAMETRIC:
+                errs.append(
+                    f"import: `{name}` collides with an ExtensionType (D17, static check 5)"
+                )
 
     # --- D11 (static check 7): alias chains must terminate; no cycles.
     # An alias's RHS head token is another alias iff it names one; those are

@@ -176,13 +176,26 @@ TypeName           ::= Identifier | QualifiedType
 /* Type System
  * D4: no anonymous inline object types — a field's type is always named.
  */
-Type               ::= BasicType | ComplexType | UserType
+Type               ::= BasicType | ComplexType | ExtensionType | UserType
+
+/* Extension types — D14, D17. Normative, but defined in
+ * SODL_Extensions.md rather than the core spec: each is a logical type
+ * layered over a core representation, for interop with Avro and Parquet.
+ * A core-only implementation rejects or passes these through; it must not
+ * mis-encode them.
+ */
+ExtensionType      ::= TemporalType
+TemporalType       ::= "timestamp" "<" TimeUnit ">"
+                     | "localTimestamp" "<" TimeUnit ">"
+                     | "time" "<" TimeUnit ">"
+                     | "date"
+                     | "duration"
+TimeUnit           ::= "s" | "ms" | "us" | "ns"
 BasicType          ::= "uint8" | "uint16" | "uint32" | "uint64"
                      | "int8" | "int16" | "int32" | "int64"
                      | "float32" | "float64"
                      | StringType | "bool"
                      | "bytes"                    (* D9 *)
-                     | "Timestamp"
 /* D16: `string<N>` is exactly N bytes and is fixed-size; bare `string` is
  * variable-length and falls under the ordering rule (static check 12).
  */
@@ -254,8 +267,8 @@ Comment            ::= "//" [^\n]*
  *    referenced keys that never existed.)
  * 4. (D7) An InstanceDecl's Value must structurally match its TypeName,
  *    and satisfy every constraint and `required` prop on that type.
- * 5. (Defect 19) `Timestamp` is a BasicType. Importing a name that
- *    collides with a BasicType is an error, not shadowing.
+ * 5. (Defect 19, D17) Importing a name that collides with a BasicType or
+ *    with an ExtensionType is an error, not shadowing.
  * 6. (D10) A ConstDecl's Literal must be valid for its declared BasicType
  *    (`const X: uint8 = 300` is an error). A const reference must resolve
  *    to a declared const, and is checked in the position exactly as if its
@@ -283,6 +296,8 @@ Comment            ::= "//" [^\n]*
  * 15. (D16) `align = N` requires N to be a power of two, as does the N in
  *    `fixed(N)`. `reserved` is legal only on a field whose type is
  *    fixed-size.
+ * 16. (D17) A TimeUnit is written, never defaulted. `time<us>` and
+ *    `time<ns>` are int64; `time<s>` and `time<ms>` are int32.
  * 10. (D12) A union member type must be fixed-size. `bytes` and `tlv<T>`,
  *    the variable-length constructs, are not admissible member types.
  *    (The regex checker sees these directly; it does not trace a struct

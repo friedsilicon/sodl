@@ -410,3 +410,46 @@ Consequence: `[T; N]` now requires T fixed-size, and both example files were
 rewritten — bounded strings throughout, and fields reordered where a
 variable one preceded a fixed one. That churn is the cost of the layout
 guarantee, made visible.
+
+## D17 — Temporal types, in the extension layer (P8)
+
+`Timestamp` is **removed from core**. Temporal types are extension types,
+defined in `SODL_Extensions.md`: `timestamp<unit>`, `localTimestamp<unit>`,
+`date`, `time<unit>`, `duration`. The other logical types that exist for
+Avro and Parquet interop belong there too (P7, P9, P10, P11).
+
+**Why it moved.** `Timestamp` was a basic type with no encoding, no
+precision, and no epoch. D16 then declared that every type has a layout and
+gave an alignment table `Timestamp` was absent from — so the spec
+contradicted itself. Defining it properly means choosing a unit and an
+epoch, which is precisely what Avro and Parquet call a *logical* type: a
+meaning layered on an integer. That is the extension layer's job (D14).
+Core keeps only types whose representation needs no interop argument.
+
+**The unit is always written.** `timestamp<ms>`, never bare `timestamp`.
+Rejected: defaulting to milliseconds. A wrong padding default is benign; a
+wrong time unit silently misreads every value by a factor of a thousand, and
+the four characters are worth it. This is the one place SODL requires what
+it could have defaulted, and the asymmetry with D16's `packed` default is
+deliberate.
+
+**Instants and wall-clock readings are different types.** `timestamp<unit>`
+is an absolute point in time; `localTimestamp<unit>` is a calendar reading
+whose instant depends on a zone carried elsewhere. Both are `int64` since
+the Unix epoch. Rejected: one type plus a UTC flag, as Parquet does —
+a flag makes two incompatible meanings look like one type, and nothing stops
+a value crossing between them. Avro made the same split for the same reason.
+
+**`date` is `int32` days; `time<unit>` is within one day.** `time<s>` and
+`time<ms>` fit `int32`; `time<us>` and `time<ns>` need `int64`, because a
+day does not fit those units in 32 bits. Rejected: making all of them
+`int64` for uniformity, which would double the common case for nothing.
+
+**`duration` is three `uint32` — months, days, milliseconds — not
+normalized.** Months vary in length and days vary across daylight-saving
+boundaries, so collapsing them into one count changes meaning. This is
+byte-identical to Avro's `duration` and Parquet's `INTERVAL`. Rejected: a
+single `int64` of milliseconds, which cannot express "one month".
+
+Consequence: `timestamp<s>` has no native Avro or Parquet equivalent and
+maps to an annotated 64-bit integer. Both formats stop at milliseconds.

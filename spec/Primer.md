@@ -196,6 +196,11 @@ into each other.
   TLVs.
 - `Crypto.SHA256Hash` — a type from an import alias.
 
+Time is not in core. `timestamp<ms>`, `date`, `time<us>`, `duration` and
+friends are *extension* types — see `SODL_Extensions.md`. The unit is always
+written out: `timestamp<ms>`, never bare `timestamp`, because getting it
+wrong is a silent thousand-fold error rather than a loud one.
+
 ## Layout
 
 SODL is its own wire format, so every declaration has a byte layout.

@@ -136,38 +136,9 @@ a constrained `string` — neither numeric nor scale-aware. Importing an Avro
 
 ---
 
-P8–P11 are the **logical-type extension layer** (see `SODL_Extensions.md`,
+P9–P11 are the **logical-type extension layer** (see `SODL_Extensions.md`,
 D14). Each maps an Avro/Parquet logical type onto a core type plus
 semantics; a core-only implementation may ignore or reject them.
-
-## P8 — temporal logical types
-
-`date`, `time`, `timestamp`, `duration`.
-
-```sodl
-struct Event {
-    on:   date;                 // days since epoch
-    at:   time<ms>;             // since midnight
-    seen: timestamp<us, utc>;   // unit + UTC-adjusted (instant)
-    ttl:  duration;
-}
-```
-
-**Motivation.** Avro (date, time-millis/micros, timestamp-*,
-local-timestamp-*, duration) and Parquet (DATE, TIME, TIMESTAMP with unit +
-isAdjustedToUTC) all carry temporal logical types. SODL has only the
-underspecified `Timestamp` basic type, so X → SODL cannot round-trip them.
-
-**Open questions.**
-
-- Unit parameter (`ms`/`us`/`ns`) — required, or a default?
-- UTC-adjusted instant vs local. Avro splits `timestamp` / `local-timestamp`;
-  model as a flag or as distinct types.
-- Epoch and range: `date` = days since 1970-01-01, `time` = since midnight.
-- `duration` encoding — Avro's (months, days, millis) `fixed[12]` vs a
-  general interval.
-- Reconcile with / absorb the core `Timestamp` when this lands (its own
-  six-file change).
 
 ## P9 — `uuid`
 

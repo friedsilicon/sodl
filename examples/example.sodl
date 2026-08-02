@@ -7,9 +7,10 @@
 // constraint the name carries everywhere it is used — the only way to name
 // a constrained primitive. `UUID` was previously imported from a
 // `common_types` module that did not exist; it is a constrained `string`.
-// Timestamp is NOT aliased or imported — it is a BasicType (see
-// DECISIONS.md, and static check 5: a name colliding with a BasicType is an
-// error, not shadowing).
+// D17: temporal types are extension types (SODL_Extensions.md), not core
+// basic types. `timestamp<ms>` and `date` below are used without import;
+// their names are reserved, and a name colliding with one is an error
+// (static check 5), exactly as for a basic type.
 // D16: `string<36>` is exactly 36 bytes — a UUID's canonical text length —
 // so UUID is fixed-size and may sit anywhere, including in a fixed list.
 // Bare `string` would be variable-length and confined to a trailing region.
@@ -93,7 +94,7 @@ object UserAccount {
     contactMethod: ContactMethod;
     addresses: [Address; 3];
     loginAttempts: uint8, default = 0, range(0, MAX_LOGIN_ATTEMPTS);
-    lastLoginTimestamp: Timestamp;
+    lastLoginTimestamp: timestamp<ms>;
     twoFactorEnabled: bool, default = false;
 }
 
@@ -149,7 +150,7 @@ object Organization {
     orgId: UUID, assigned = counter, key;
     orgName: string<128>, key;
     domain: string<253>;
-    foundedDate: Timestamp;
+    foundedDate: date;
     status: string<16>;
     employeeCount: int64;
 }
@@ -161,7 +162,7 @@ object OrganizationMembership {
     userId: UUID, key;
     orgId: UUID, key;
     role: UserRole;
-    joinDate: Timestamp;
+    joinDate: date;
 }
 
 // The composite primary key, named so membership can be created through it.

@@ -41,7 +41,12 @@ Identifiers match `[a-zA-Z_][a-zA-Z0-9_]*`.
 ### 4.1 Basic types
 
 `uint8` `uint16` `uint32` `uint64` `int8` `int16` `int32` `int64`
-`float32` `float64` `string` `bool` `bytes` `Timestamp`
+`float32` `float64` `string` `bool` `bytes`
+
+Core SODL has **no time type**. Temporal types — `timestamp<unit>`,
+`localTimestamp<unit>`, `date`, `time<unit>`, `duration` — are extension
+types, defined in `SODL_Extensions.md` (D17). So are the other logical types
+that exist to interoperate with Avro and Parquet.
 
 `string` is variable-length UTF-8. `string<N>` is exactly N bytes and is
 therefore fixed-size: a shorter value is padded with NUL, a longer one is an
@@ -53,8 +58,8 @@ error, and a reader stops at the first NUL or at N bytes.
 An `enum` declares its representation width — `enum Status : uint8 { … }` —
 defaulting to `uint32` when omitted. An enum is fixed-size, of that width.
 
-Importing a name that collides with a basic type is an error. Basic types
-are not shadowable.
+Importing a name that collides with a basic type, or with an extension type
+(`SODL_Extensions.md`), is an error. Neither is shadowable.
 
 ### 4.2 Complex types
 
@@ -160,6 +165,8 @@ Natural alignment is defined here, not inherited from any platform ABI:
 | `uint32` `int32` `float32` | 4 |
 | `uint64` `int64` `float64` | 8 |
 | `string<N>`, `[uint8; N]` | 1 |
+| `string`, `bytes`, `tlv<T>` | 4 — the alignment of their `uint32` length prefix |
+| extension types | as `SODL_Extensions.md` defines; all are fixed-size |
 | `[T; N]` | alignment of T |
 | struct, union, object | alignment of its most-aligned member |
 
@@ -317,8 +324,8 @@ A `const` binds a name to a compile-time literal:
     const DEFAULT_HOST: string = "127.0.0.1";
 
 The type is declared, never inferred, and is a basic type (§4.1) that has a
-literal form — number, string, or bool. `bytes` and `Timestamp` have no
-literal, so they cannot be a const's type. The value is a single literal: a
+literal form — number, string, or bool. `bytes` has no literal, so it
+cannot be a const's type; neither can an extension type. The value is a single literal: a
 const references no other const, and no arithmetic is permitted.
 
 A const reference is equivalent to writing its literal in place. Two checks

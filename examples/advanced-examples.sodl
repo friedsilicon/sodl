@@ -5,7 +5,8 @@
 // refs, TLV over compound types, `bytes`, and structured instance data.
 
 // Import common types and utilities.
-// Timestamp is NOT imported — it is a BasicType (static check 5).
+// D17: temporal types are extension types (SODL_Extensions.md). Their
+// names are reserved and need no import; colliding with one is an error.
 import { GeoLocation } from "common_types"
 import { EmailAddress, PhoneNumber, IPAddress } from "validated_types"
 import { * } from "crypto_types" as Crypto
@@ -107,8 +108,8 @@ object UserSession {
     deviceInfo: DeviceInfo;
     authFactors: [AuthenticationFactor; 3];
     securityLevel: uint8, range(1, 5);
-    lastActivity: Timestamp;
-    expiresAt: Timestamp;
+    lastActivity: timestamp<ms>;
+    expiresAt: timestamp<ms>;
     metadata: tlv<string>;  // Variable length metadata
 }
 
@@ -160,8 +161,8 @@ object ECommerceOrder {
     items: [OrderItem; 50];
     payment: OrderPayment;
     status: string<16>;
-    createdAt: Timestamp;
-    updatedAt: Timestamp;
+    createdAt: timestamp<ms>;
+    updatedAt: timestamp<ms>;
 }
 
 key OrderKey {
@@ -198,7 +199,7 @@ object Employee {
     subordinates: [UUID; 20];           // Array of Employee IDs
     permissions: [string<32>; 50];
     accessLevel: uint8, range(1, 10);
-    hireDate: Timestamp;
+    hireDate: date;
     status: string<16>, pattern = "^(Active|OnLeave|Terminated)$";
 }
 
@@ -238,9 +239,9 @@ keymap EmployeeDepartment:Employee {
 
 // Demonstration of type inheritance and composition
 struct BaseAuditInfo {
-    createdAt: Timestamp;
+    createdAt: timestamp<ms>;
     createdBy: UUID;
-    updatedAt: Timestamp;
+    updatedAt: timestamp<ms>;
     updatedBy: UUID;
     version: uint32;
 }
@@ -250,7 +251,7 @@ struct AuditChange {
     field: string<64>;
     oldValue: string<128>;
     newValue: string<128>;
-    timestamp: Timestamp;
+    occurredAt: timestamp<us>;
     changedBy: UUID;
 }
 
@@ -290,7 +291,7 @@ struct TlsIdentity {
 object CacheEntry {
     cacheKey: Crypto.SHA256Hash, key;
     contentType: string<64>;
-    storedAt: Timestamp;
+    storedAt: timestamp<ms>;
     body: bytes;                       // arbitrary payload — variable
     // D8: tlv accepts any Type, not just primitives. T = tag,
     // L = byte length, V = inner encoding; nesting is allowed.
