@@ -490,3 +490,124 @@ cannot express the C code it exists to interoperate with.
 - Interchange: Avro and Protobuf unions are self-describing, so an
   externally-discriminated union has to be lowered (probably to the tagged
   form) on export. Add a capability-matrix row.
+
+---
+
+P17–P19 come from the goal in `TODO.md` ("Direction"): SODL should describe
+a programming interface and the binary exchange between two endpoints well
+enough that a human and an LLM can collaborate on it and generate working
+code for both sides. That is a larger language than spec section 1 currently
+scopes, and these are its missing pieces.
+
+## P17 — derived and related fields
+
+Express the relationship between one field and another, where today only
+prose or hand-written code carries it.
+
+```sodl
+struct Frame {
+    length:   uint32, lengthOf = payload;      // byte count of payload
+    checksum: uint32, checksumOf = payload;    // over payload's bytes
+    payload:  bytes;
+}
+```
+
+**Motivation.** Two forces meet here. First, P15's variable tail is
+**unparseable without this** — a reader reaching a `bytes` or variable list
+has no way to know where it ends unless either SODL length-prefixes it
+implicitly or the schema names the field that carries the length. Second,
+this is the clearest case of semantics an LLM can act on: `lengthOf` states
+*why* a field exists and what it governs, which is exactly the knowledge
+needed to generate a correct parser and to reason about a protocol. The same
+applies to `discriminant` (P16), which is the same idea for unions.
+
+**Open questions.**
+
+- **Does SODL self-delimit instead?** D15 says SODL owns its encoding, so it
+  could length-prefix every variable field and make `lengthOf` unnecessary.
+  That is simpler and self-consistent — but it forecloses overlaying existing
+  C structs, which is what motivated the fixed tier. Resolve this against
+  D15 before anything else here; the answer may narrow the whole proposal.
+- Which relationships are worth first-class syntax: `lengthOf`, `countOf`
+  (elements, not bytes), `checksumOf`, `offsetOf`, `presentIf`, `versionOf`?
+  Each costs the checker and the codegen.
+- Whether the derived value is *computed on write* by generated code, or
+  merely *checked on read*, or both.
+- Units: `lengthOf` in bytes or elements — and whether a general unit
+  annotation (P18) subsumes the question.
+- Whether a derived field may precede its target only, or either side.
+- Cycles: `a` is the length of `b` and `b` the length of `a` must be an error.
+
+## P18 — semantic annotations
+
+Attach machine-readable meaning to a declaration, not just a type.
+
+```sodl
+struct Reading {
+    takenAt:  uint64, unit = milliseconds, since = epoch;
+    temp:     int16,  unit = celsius, scale = 0.1;
+    sensorId: uint32, role = identifier;
+    patient:  string, sensitivity = pii;
+}
+```
+
+**Motivation.** A `uint32` tells a generator its width and nothing about its
+meaning. Units, roles, and sensitivity live in `//` comments today, which
+both the toolchain and an LLM discard. For the stated goal — a human and an
+LLM collaborating on an interface and generating executable code — the
+meaning has to be *in* the language, not beside it. It is also what lets a
+generator emit correct conversions and a checker catch a milliseconds value
+assigned to a seconds field.
+
+**Open questions.**
+
+- Fixed vocabulary or open key/value? A closed set is checkable; an open set
+  is extensible and immediately useful. Perhaps a checked core plus an open
+  namespace.
+- Whether `doc = "..."` prose is first-class — it is the most obviously
+  LLM-useful annotation and the least checkable.
+- Do annotations participate in type checking (is milliseconds-into-seconds
+  an error?) or are they inert metadata?
+- Do they travel through an alias, like constraints do (D11)?
+- How they map to targets: Avro custom attributes and Parquet KV metadata
+  carry them; C codegen has nowhere to put them but comments.
+- Whether `unit` and `scale` overlap `decimal<P,S>` (P7).
+
+## P19 — interfaces: operations and endpoints
+
+Give SODL a verb, and a notion of who is talking.
+
+```sodl
+interface SensorService {
+    endpoint device;
+    endpoint collector;
+
+    op readSensor: device -> collector {
+        request:  ReadRequest;
+        response: ReadResponse;
+        errors:   [SensorError];
+    }
+}
+```
+
+**Motivation.** SODL describes data but has no way to say what is *done*
+with it. "The binary exchange required between two endpoints" needs
+operations, participants, and direction; without them a generator can emit
+structs but not the client or server that exchanges them, so the output is
+not directly executable.
+
+**Open questions.**
+
+- **How much protocol?** Request/response only, or sequencing, streaming,
+  and handshakes? A state machine is far more expressive and far more to
+  specify and check. This is the scope question that governs the rest.
+- Whether an operation gets a wire identifier of its own (an opcode), and
+  how it relates to P6's field numbers.
+- Error model: typed error unions, an error field, or out of band?
+- Whether endpoints are named roles (`device`, `collector`) or concrete
+  addresses — roles seem right; addresses are deployment, not schema.
+- Relationship to `key`/`keymap`, which already describe how an object is
+  created and retrieved. Is a keymap a degenerate operation? If so they
+  should unify rather than sit side by side.
+- Whether interfaces are in core or the extension layer (D14).
+- Versioning and compatibility of an interface over time.

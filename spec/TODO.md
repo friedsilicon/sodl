@@ -61,6 +61,27 @@ contradicted.
   checked to *fit* the position — both need the same field-level type
   checking that static check 4 still lacks.
 
+## Direction
+
+SODL is its own wire format (D15), and the goal is larger than a schema
+language: a human and an LLM should be able to collaborate on a description
+of a programming interface *and* the binary exchange between two endpoints,
+and generate working code for both sides from it. That requires semantics
+the format carries directly — meaning, not just structure.
+
+Spec section 1 scopes SODL to "data structures, their relationships, their
+constraints, and their populated values", which no longer covers this. It
+needs rewriting once the pieces below settle. The missing ones: derived and
+related fields (P17), semantic annotations (P18), and interfaces with
+operations and endpoints (P19).
+
+**Blocking tension.** P15's variable tail cannot be read without knowing
+where it ends. Either SODL length-prefixes every variable field implicitly
+(self-consistent with D15, but forecloses overlaying existing C structs) or
+the schema names the field carrying the length (P17's `lengthOf`, which is
+the beginning of describing foreign layouts that D15 says SODL does not do).
+This must be resolved before P15 can generate working code.
+
 ## Toolchain
 
 Direction: a single-language toolchain (no serialized boundary between
