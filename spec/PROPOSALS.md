@@ -573,41 +573,22 @@ assigned to a seconds field.
   carry them; C codegen has nowhere to put them but comments.
 - Whether `unit` and `scale` overlap `decimal<P,S>` (P7).
 
-## P19 — interfaces: operations and endpoints
+## P19 — endpoints (no verbs)
 
-Give SODL a verb, and a notion of who is talking.
+**Superseded before it was written.** The first draft of this proposal gave
+SODL operations — `op read: device -> collector { request: …; response: …; }`.
+That was wrong. SODL will have a runtime, and the runtime supplies the verbs;
+the language does not need them.
 
-```sodl
-interface SensorService {
-    endpoint device;
-    endpoint collector;
+The access paths already exist and are declarative: a `primary` keymap is how
+an object is created, every key is how one is retrieved (D6). A runtime that
+reads those can offer the behavior without SODL naming a single operation.
+Adding `op` would have duplicated `keymap` in a second vocabulary.
 
-    op readSensor: device -> collector {
-        request:  ReadRequest;
-        response: ReadResponse;
-        errors:   [SensorError];
-    }
-}
-```
+What may still be missing is smaller and not yet urgent: whether SODL needs
+any notion of an endpoint or role at all — which party holds what, and who
+may reach which access path — or whether that too belongs to the runtime and
+its configuration rather than to the language.
 
-**Motivation.** SODL describes data but has no way to say what is *done*
-with it. "The binary exchange required between two endpoints" needs
-operations, participants, and direction; without them a generator can emit
-structs but not the client or server that exchanges them, so the output is
-not directly executable.
-
-**Open questions.**
-
-- **How much protocol?** Request/response only, or sequencing, streaming,
-  and handshakes? A state machine is far more expressive and far more to
-  specify and check. This is the scope question that governs the rest.
-- Whether an operation gets a wire identifier of its own (an opcode), and
-  how it relates to P6's field numbers.
-- Error model: typed error unions, an error field, or out of band?
-- Whether endpoints are named roles (`device`, `collector`) or concrete
-  addresses — roles seem right; addresses are deployment, not schema.
-- Relationship to `key`/`keymap`, which already describe how an object is
-  created and retrieved. Is a keymap a degenerate operation? If so they
-  should unify rather than sit side by side.
-- Whether interfaces are in core or the extension layer (D14).
-- Versioning and compatibility of an interface over time.
+Left open deliberately. Revisit once the runtime's shape is known; designing
+this before then would be guessing at the seam between the two.

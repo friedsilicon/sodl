@@ -72,8 +72,14 @@ the format carries directly — meaning, not just structure.
 Spec section 1 scopes SODL to "data structures, their relationships, their
 constraints, and their populated values", which no longer covers this. It
 needs rewriting once the pieces below settle. The missing ones: derived and
-related fields (P17), semantic annotations (P18), and interfaces with
-operations and endpoints (P19).
+related fields (P17) and semantic annotations (P18).
+
+**SODL will have a runtime, and it does not work in isolation.** The runtime
+supplies the verbs, so the language has none: keys and keymaps already say
+how an object is created (`primary`) and retrieved (D6), and a runtime that
+reads them can expose the behavior without SODL naming operations. Where the
+seam between language and runtime falls is not yet decided, and several
+questions wait on it (P19).
 
 **Blocking tension.** P15's variable tail cannot be read without knowing
 where it ends. Either SODL length-prefixes every variable field implicitly
