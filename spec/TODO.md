@@ -47,8 +47,11 @@ contradicted.
   aliases, but `GeoLocation`, the `validated_types` names, and the `Crypto`
   wildcard are still unresolved imports. A real module behind one of them
   turns static check 4 into a test and exposes what else hides behind a name.
-- **Write a parser.** The grammar has never been fed to a generator. `D5`
-  above is exactly the kind of bug that surfaces the moment one runs.
+- **Write a parser.** Started: `crates/sodl/src/parser.rs` parses the
+  `const` and `alias` slice on chumsky (D13), with an AST in `ast.rs`.
+  Remaining: every other declaration. `D5` above is exactly the kind of bug
+  that surfaces the moment the dotted-name productions are attempted — the
+  parser keeps dotted names unresolved on purpose.
 - **Move checks off regex.** `check-sodl.py` reads concrete syntax by regex.
   It enforces D6 and catches defects 17/19, but union members, instance
   types, and anything scope-dependent need an AST. It now validates each

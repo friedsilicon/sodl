@@ -15,6 +15,9 @@
 //! (`spec/TODO.md`: "Write a parser"). The `spec/TODO.md` "Format-interchange
 //! gaps" section tracks what the IR must be able to represent.
 
+pub mod ast;
+pub mod parser;
+
 /// Crate version, from Cargo.
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
