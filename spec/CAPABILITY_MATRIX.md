@@ -93,6 +93,15 @@ Every row is blocked on its proposal; see `SODL_Extensions.md`.
 | `json` / `bson` | annotated | native `JSON`/`BSON` | annotated | P10 |
 | `float16` | **none** | native `FLOAT16` | **none** | P11 |
 
+## Field order
+
+Protobuf and Avro both identify fields independently of declaration order —
+Protobuf by number, Avro by name — so an importer may reorder freely. That
+matters if P15's ordering rule (variable-length fields last) binds imported
+types: every message gets rewritten with its fixed scalars first, and the
+mapping back survives only because the field identity travels with it.
+For Protobuf that identity is the field number, so P15-universal implies P6.
+
 ## What this says about the plan
 
 1. **`Timestamp` and `tlv` are the two blockers** on any honest backend.

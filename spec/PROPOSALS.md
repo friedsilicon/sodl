@@ -409,8 +409,21 @@ field is a compile error rather than a silent demotion to prefix-plus-tail.
   the examples stand. Universal is more useful to backends and more
   disruptive to what exists.
 - **Arrays of variable-tailed types.** `[T; N]` where `T` has a variable
-  tail cannot be indexed — element offsets are not computable. Forbid it, or
-  admit it as sequential-access-only?
+  tail cannot be indexed — element offsets are not computable. Forbid it in
+  the fixed list; but a *variable*-length list (P5) must admit such elements
+  as sequential-access-only, because `repeated Message` is ubiquitous in
+  Protobuf and any message with a `string` field is variable-tailed.
+  Forbidding it outright would make most `.proto` files unimportable.
+- **Protobuf import forces reordering, which makes P6 a hard dependency.**
+  Protobuf fields are identified by number and are order-irrelevant on the
+  wire, so hoisting fixed scalars ahead of `string`/`bytes`/`repeated`/`map`
+  is semantically harmless — *provided* the field numbers ride along. Without
+  P6 the reorder destroys the mapping and Protobuf → SODL → Protobuf breaks.
+  If the ordering rule is universal, P6 must land first. Note also that a
+  protobuf-derived type gains nothing from a fixed prefix: protobuf is TLV on
+  the wire, so there is no memcpy-able head to overlay. The constraint would
+  be pure cost for those types — an argument for binding the rule only to
+  marked declarations.
 - **Multiple trailing variable fields.** Two `string`s at the end are
   decodable in order but the second has no static offset. Permit a variable
   *region* of several fields, or exactly one trailing variable field?
