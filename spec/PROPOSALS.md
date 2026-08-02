@@ -434,18 +434,22 @@ lets one language serve both a portable wire format and a C-overlayable one.
   32/64-bit and across architectures — `uint64` aligns to 8 on most 64-bit
   targets and to 4 on some 32-bit ones. Pin one model in-spec and require
   backends to conform, or parameterize the declaration.
-- **Endianness — how much support?** Orthogonal to padding: one declared
-  byte order per declaration, not per field, and not coupled to
-  `fixed`/`packed`. The question is only whether it is declarable at all.
-  Little-endian is the obvious default — every modern host is LE, and every
-  format SODL would displace (Protobuf's fixed widths, Avro, Parquet,
-  FlatBuffers, Cap'n Proto) chose it. Against that: existing network
-  protocols are big-endian by convention, and describing them is the C
-  interop case. Note the cost is not byte-swapping but that **zero-copy
-  overlay is impossible whenever declared order differs from host order** —
-  a big-endian declaration cannot be cast on an LE machine. SBE, the nearest
-  relative, does support per-message byte order, and comes from an industry
-  that constantly speaks other people's protocols.
+- ~~Endianness?~~ **Settled: declarable, defaulting to little-endian.**
+  Byte order is a property of a declaration, not of a field, and is
+  independent of `fixed`/`packed` — the same field must not encode two ways
+  depending on a padding keyword. Little-endian is the default: every modern
+  host is LE, and every format SODL would displace (Protobuf's fixed widths,
+  Avro, Parquet, FlatBuffers, Cap'n Proto) chose it. Big-endian is
+  declarable because existing network protocols use it by convention, which
+  is exactly the C-interop case. **Accepted cost:** a declaration whose byte
+  order differs from the host cannot be zero-copy overlaid — it must be
+  copied and swapped. That is inherent, and it falls on precisely the
+  declarations that describe someone else's protocol rather than one's own
+  structs. Rejected: fixing LE with no escape (would make big-endian
+  protocols inexpressible) and per-field byte order (mixed-endian structs
+  exist but are rare, and the checking and codegen cost is not worth them).
+  Syntax is still open — the modifier has to sit somewhere sensible relative
+  to `fixed`/`packed` and the declaration keyword.
 - **`bool` and enum widths.** C leaves both implementation-defined. A fixed
   layout must pin them.
 - Bounded strings: `string<N>` is fixed-size and may sit anywhere, including
