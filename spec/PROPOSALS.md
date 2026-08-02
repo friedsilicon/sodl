@@ -365,23 +365,49 @@ struct Post {                // unmarked: free tier, no layout guarantee
 }
 ```
 
-**Motivation.** The spec currently claims a fixed layout it does not have
-(see the union bug in `TODO.md`): `string` is variable-length yet legal as a
-union member and inside a "fixed-length" list. Meanwhile the primary
-direction, X → SODL, needs maps and variable-length lists (P4, P5), which
-are variable by nature. The two goals are both real and cannot both be
-global. Splitting them makes each honest: the fixed tier is byte-stable and
-overlays existing C structs and unions; the free tier is an ordinary schema
-language.
+**The ordering rule.** Variable-length fields go last. Once a
+variable-length field appears in a declaration, no fixed-length field may
+follow it:
 
-Tiering is by **explicit keyword only** — nothing is fixed unless declared
-so, and the marker is statically checked, so adding a `string` field to a
-`fixed` type is a compile error rather than a silent demotion.
+```sodl
+fixed struct Packet {
+    version: uint8;          // offset 0  — statically known
+    length:  uint32;         // offset 4  — statically known
+    id:      [uint8; 16];    // offset 8  — statically known
+    payload: bytes;          // variable — must be last
+}
+```
+
+Every type therefore has a **fixed prefix with statically known offsets**,
+whether or not it also has a variable tail. That is what makes C overlay
+work: the prefix can be cast onto a C struct, and the tail is walked. It
+generalizes C99's flexible array member from one trailing array to a
+trailing region.
+
+**Variable-tailedness propagates.** A type containing a variable-length
+field is itself variable-tailed, so it may only appear as the *last* field
+of whatever contains it — otherwise the following field's offset would not
+be computable. The rule is transitive and statically checkable.
+
+**Motivation.** The spec currently claims a fixed layout it does not have
+
+The `fixed` / `packed` keyword then asserts something narrower: the type is
+*wholly* fixed — no variable tail at all — and its layout is pinned. Tiering
+stays **explicit keyword only**, so a `fixed` type that acquires a `string`
+field is a compile error rather than a silent demotion to prefix-plus-tail.
 
 **Open questions.**
 
-- Bounded strings. The fixed tier needs *some* string: `string<N>` as a new
-  bounded type, or require `[uint8; N]` and leave `string` free-tier only.
+- **Arrays of variable-tailed types.** `[T; N]` where `T` has a variable
+  tail cannot be indexed — element offsets are not computable. Forbid it, or
+  admit it as sequential-access-only?
+- **Multiple trailing variable fields.** Two `string`s at the end are
+  decodable in order but the second has no static offset. Permit a variable
+  *region* of several fields, or exactly one trailing variable field?
+- Whether the trailing region needs a length prefix so a reader can skip the
+  whole tail without decoding it field by field.
+- Bounded strings. A wholly-`fixed` type needs *some* string: `string<N>` as
+  a new bounded type, or require `[uint8; N]`.
 - **Which ABI does `fixed` name?** Natural alignment differs across
   32/64-bit and across architectures. Pin one target, parameterize the
   declaration, or define alignment rules in-spec and let backends conform.
