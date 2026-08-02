@@ -149,7 +149,16 @@ SODL:
 
 ## Underspecified
 
-- **`Timestamp`** — no encoding, no precision, no epoch.
+- **`Timestamp` has no size — D16 is incomplete without it.** No encoding,
+  no precision, no epoch, and now no width or alignment either. D16 states
+  that every type has a layout and gives an alignment table; `Timestamp` is
+  a BasicType and is absent from it, so the spec currently contradicts
+  itself. This is no longer only an interchange gap (it blocks all four
+  targets) — it is a correctness bug in the layout rules. Deciding the
+  encoding fixes both, and settles most of P8.
+- **`bytes` and bare `string` are absent from the alignment table.** Both
+  are length-prefixed with a `uint32` (D16), so their alignment is
+  presumably 4, but the spec does not say so. Same for `tlv<T>`.
 - **`strict` — flagged for future refinement.** Direction established but
   deliberately not decided: `strict = <literal>` means the value is
   constant and must equal that literal, and the field is still transmitted
