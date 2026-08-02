@@ -133,3 +133,87 @@ a constrained `string` — neither numeric nor scale-aware. Importing an Avro
   variable? Avro decimal on `fixed` is fixed; on `bytes` is not.
 - Whether `range(...)` applies, and in decimal or float terms.
 - Rounding and overflow semantics on assignment.
+
+---
+
+P8–P11 are the **logical-type extension layer** (see `SODL_Extensions.md`,
+D14). Each maps an Avro/Parquet logical type onto a core type plus
+semantics; a core-only implementation may ignore or reject them.
+
+## P8 — temporal logical types
+
+`date`, `time`, `timestamp`, `duration`.
+
+```sodl
+struct Event {
+    on:   date;                 // days since epoch
+    at:   time<ms>;             // since midnight
+    seen: timestamp<us, utc>;   // unit + UTC-adjusted (instant)
+    ttl:  duration;
+}
+```
+
+**Motivation.** Avro (date, time-millis/micros, timestamp-*,
+local-timestamp-*, duration) and Parquet (DATE, TIME, TIMESTAMP with unit +
+isAdjustedToUTC) all carry temporal logical types. SODL has only the
+underspecified `Timestamp` basic type, so X → SODL cannot round-trip them.
+
+**Open questions.**
+
+- Unit parameter (`ms`/`us`/`ns`) — required, or a default?
+- UTC-adjusted instant vs local. Avro splits `timestamp` / `local-timestamp`;
+  model as a flag or as distinct types.
+- Epoch and range: `date` = days since 1970-01-01, `time` = since midnight.
+- `duration` encoding — Avro's (months, days, millis) `fixed[12]` vs a
+  general interval.
+- Reconcile with / absorb the core `Timestamp` when this lands (its own
+  six-file change).
+
+## P9 — `uuid`
+
+```sodl
+struct User { id: uuid; }
+```
+
+**Motivation.** Avro (uuid on `string`) and Parquet (UUID on `fixed[16]`)
+have it. D11 currently fakes it as `alias UUID = string, pattern = ...`,
+which is neither 16-byte nor semantic.
+
+**Open questions.**
+
+- Wire form: 16 bytes (Parquet) vs string (Avro). Pick canonical, record
+  both mappings.
+- Redefine the D11 `UUID` alias as this type — follow-on edit.
+- Fixed-size (hence union-member admissible)? Yes if 16-byte.
+
+## P10 — semi-structured: `json` / `bson`
+
+```sodl
+struct Log { payload: json; }
+```
+
+**Motivation.** Parquet JSON/BSON logical types carry opaque nested
+documents; useful generally for schemaless fields. No SODL construct holds
+one.
+
+**Open questions.**
+
+- One `json` type, or distinct `json` / `bson`? (bson = binary encoding of
+  the same model.)
+- Variable-length, like `bytes` — inadmissible as a union member or
+  fixed-list element.
+- Fully opaque, or is any structure/validation offered?
+
+## P11 — `float16` (half precision)
+
+```sodl
+struct Sample { level: float16; }
+```
+
+**Motivation.** Parquet FLOAT16. Completes the float family (SODL has
+`float32`/`float64`) for lossless Parquet round-trip.
+
+**Open questions.**
+
+- Literal form and precision/range checks.
+- Core `BasicType` or extension-only. Probably extension.

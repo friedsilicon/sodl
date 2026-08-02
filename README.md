@@ -28,7 +28,8 @@ Endpoint local = {
 
 ```
 spec/           the language definition
-  SODL_Specification.md   the spec — normative
+  SODL_Specification.md   core spec — normative
+  SODL_Extensions.md      interop logical types, layered on core — normative
   sodl.ebnf               grammar — normative
   DECISIONS.md            why the language is shaped this way
   PROPOSALS.md            constructs under consideration — non-normative

@@ -14,8 +14,9 @@ grammar, spec, examples — are the product today; the Rust toolchain in
 
 ## Which file is authoritative
 
-`spec/SODL_Specification.md` and `spec/sodl.ebnf` are **normative**. Where
-they disagree, that is a bug in one of them.
+`spec/SODL_Specification.md` (core), `spec/SODL_Extensions.md` (interop
+logical types, layered on core — D14), and `spec/sodl.ebnf` are
+**normative**. Where they disagree, that is a bug in one of them.
 
 Everything else is not, and non-normative content must not be written into
 either:

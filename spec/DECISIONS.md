@@ -281,3 +281,17 @@ its JS-grammar/C-output build and CST-not-AST model fit an LSP, not a
 converter — reserved for editor support, see TODO); `pest`/`winnow`/`nom`
 (viable, weaker diagnostics or lower-level); bison/flex and hand-written
 recursive descent (the prior C++/JSON pattern and its all-manual inverse).
+
+## D14 — Spec split: core + extensions
+
+`SODL_Specification.md` is the **core** language. `SODL_Extensions.md` is a
+normative layer defining interop **logical types** (Avro / Parquet /
+Protobuf) that desugar to a core type plus semantics. Both, plus
+`sodl.ebnf`, are normative; the extension spec builds on core and never
+contradicts it. An implementation may support core only — it must then
+reject or pass through extension types, never silently mis-encode them.
+
+Rejected: one monolithic spec (a minimal core consumer would carry
+temporal/uuid/json semantics it never uses), and folding logical types into
+core `BasicType` (bloats the fixed-wire core the language is built around —
+D4, D9).
