@@ -342,45 +342,71 @@ mechanism today: imports bind names verbatim and nothing may modify them.
 P15–P16 come out of the spec audit and the C-interop requirement. They are
 paired: P16's untagged form is only meaningful inside P15's fixed tier.
 
-## P15 — two-tier type system: `fixed` / `packed` vs free
+## P15 — layout: `fixed` or `packed`, plus the ordering rule
 
-A type is either **layout-guaranteed** or it is not, and the language says
-which.
+Every declaration has a layout and says which. There is no unlaid-out type:
+D15 made SODL its own wire format, so every type is encoded by SODL's rules
+and every field has an offset. The choice is not *whether* a type is laid
+out but *how* it pads.
 
 ```sodl
-fixed struct Header {        // natural alignment + padding, C ABI layout
-    version: uint8;
-    flags:   uint16;
-    id:      [uint8; 16];
+packed struct WireHeader {   // no padding
+    version: uint8;          // offset 0
+    flags:   uint16;         // offset 1
 }
 
-packed struct WireHeader {   // no padding, ABI-independent
-    version: uint8;
-    flags:   uint16;
-}
-
-struct Post {                // unmarked: free tier, no layout guarantee
-    title: string;
-    tags:  [string];
+fixed struct Header {        // natural alignment
+    version: uint8;          // offset 0
+    flags:   uint16;         // offset 2 — one pad byte inserted
+    id:      [uint8; 16];    // offset 4
 }
 ```
+
+`packed` inserts no padding: offsets are the running sum of sizes, identical
+on every platform. `fixed` aligns each field to its natural boundary, which
+is what a C compiler does by default, so the type can be overlaid on an
+existing C struct.
+
+**Controlling padding.** The two keywords are the common cases; real C code
+needs finer control, so the layout is parameterizable:
+
+```sodl
+fixed(4) struct Capped {     // cap alignment at 4 bytes, like #pragma pack(4)
+    a: uint8;
+    b: uint64;               // aligned to 4, not 8
+}
+
+fixed struct Explicit {
+    a:        uint8;
+    _pad:     [uint8; 3], reserved;   // padding written out, not inferred
+    b:        uint32, align = 8;      // force this field onto an 8-byte boundary
+}
+```
+
+- `fixed(N)` caps alignment at N — each field aligns to `min(natural, N)`.
+  `packed` is exactly `fixed(1)`.
+- `align = N` on a field raises that one field's boundary.
+- `reserved` marks a field as padding: it occupies bytes, carries no value,
+  and generated code neither reads nor writes it. This lets a declaration
+  state a layout exactly rather than relying on the reader to infer the
+  compiler's padding.
 
 **The ordering rule.** Variable-length fields go last. Once a
 variable-length field appears in a declaration, no fixed-length field may
 follow it:
 
 ```sodl
-fixed struct Packet {
+packed struct Packet {
     version: uint8;          // offset 0  — statically known
-    length:  uint32;         // offset 4  — statically known
-    id:      [uint8; 16];    // offset 8  — statically known
+    length:  uint32;         // offset 1  — statically known
+    id:      [uint8; 16];    // offset 5  — statically known
     payload: bytes;          // variable — must be last
 }
 ```
 
 Every type therefore has a **fixed prefix with statically known offsets**,
 whether or not it also has a variable tail. That is what makes C overlay
-work: the prefix can be cast onto a C struct, and the tail is walked. It
+work: the prefix can be cast onto a C struct and the tail walked. It
 generalizes C99's flexible array member from one trailing array to a
 trailing region.
 
@@ -389,62 +415,59 @@ field is itself variable-tailed, so it may only appear as the *last* field
 of whatever contains it — otherwise the following field's offset would not
 be computable. The rule is transitive and statically checkable.
 
-**Motivation.** The spec currently claims a fixed layout it does not have
-
-The `fixed` / `packed` keyword then asserts something narrower: the type is
-*wholly* fixed — no variable tail at all — and its layout is pinned. Tiering
-stays **explicit keyword only**, so a `fixed` type that acquires a `string`
-field is a compile error rather than a silent demotion to prefix-plus-tail.
+**Motivation.** The spec claims a fixed layout it does not have: `string` is
+variable-length yet legal as a union member and inside a "fixed-length" list
+(see the union bug in `TODO.md`). Meanwhile C interop needs the layout to be
+stated and controllable, not inferred. Making layout explicit and the
+ordering rule universal resolves both, and the `fixed`/`packed` split is what
+lets one language serve both a portable wire format and a C-overlayable one.
 
 **Open questions.**
 
-- ~~Universal or marked-only?~~ **Settled by D15: universal.** SODL owns its
-  encoding, so every type gets SODL's layout and none opts out. Consequence
-  to work through here: the current examples violate the rule in at least two
-  places — `Address` is all `string`s, making `addresses: [Address; 3]` an
-  array of variable-tailed elements, and `contactMethod: ContactMethod`
-  (string members) sits mid-struct in `UserAccount` with fixed fields after
-  it. Both example files need a pass when this lands.
-- **Bounded strings are needed, and are now two types.** `string<N>` is
-  fixed-size and may sit anywhere, including mid-struct and as a union
-  member; `string` is variable and falls under the ordering rule. This
-  replaces the earlier open question about whether to require `[uint8; N]`.
+- **What is the default when neither keyword is written?** Three answers:
+  require one always (most explicit, most noise); default `packed` (a wire
+  format should be deterministic across platforms, and `fixed` is the
+  special case for C overlay); default `fixed` (friendlier to the C-interop
+  use case, but makes the wire format vary by ABI, which is bad for a format
+  whose point is exchange). `packed` looks right for a format that owns its
+  encoding, but this needs deciding, not assuming.
+- **Which ABI does `fixed` name?** Natural alignment differs across
+  32/64-bit and across architectures — `uint64` aligns to 8 on most 64-bit
+  targets and to 4 on some 32-bit ones. Pin one model in-spec and require
+  backends to conform, or parameterize the declaration.
+- **Endianness.** A C struct is host-endian; a wire format usually is not.
+  Does `fixed` imply host order (true zero-copy overlay) and `packed` a
+  declared order? They may need different answers, which is awkward.
+- **`bool` and enum widths.** C leaves both implementation-defined. A fixed
+  layout must pin them.
+- Bounded strings: `string<N>` is fixed-size and may sit anywhere, including
+  mid-struct and as a union member; `string` is variable and falls under the
+  ordering rule.
 - **Arrays of variable-tailed types.** `[T; N]` where `T` has a variable
   tail cannot be indexed — element offsets are not computable. Forbid it in
   the fixed list; but a *variable*-length list (P5) must admit such elements
   as sequential-access-only, because `repeated Message` is ubiquitous in
   Protobuf and any message with a `string` field is variable-tailed.
-  Forbidding it outright would make most `.proto` files unimportable.
-- **Protobuf import forces reordering, which makes P6 a hard dependency.**
-  Protobuf fields are identified by number and are order-irrelevant on the
-  wire, so hoisting fixed scalars ahead of `string`/`bytes`/`repeated`/`map`
-  is semantically harmless — *provided* the field numbers ride along. Without
-  P6 the reorder destroys the mapping and Protobuf → SODL → Protobuf breaks.
-  If the ordering rule is universal, P6 must land first. Note also that a
-  protobuf-derived type gains nothing from a fixed prefix: protobuf is TLV on
-  the wire, so there is no memcpy-able head to overlay. The constraint would
-  be pure cost for those types — an argument for binding the rule only to
-  marked declarations.
 - **Multiple trailing variable fields.** Two `string`s at the end are
   decodable in order but the second has no static offset. Permit a variable
   *region* of several fields, or exactly one trailing variable field?
-- Whether the trailing region needs a length prefix so a reader can skip the
-  whole tail without decoding it field by field.
-
-- **Which ABI does `fixed` name?** Natural alignment differs across
-  32/64-bit and across architectures. Pin one target, parameterize the
-  declaration, or define alignment rules in-spec and let backends conform.
-- **Endianness.** A C struct is host-endian; wire formats are usually
-  big-endian. Does `fixed` imply host order (true memcpy compatibility) or a
-  declared order (portability)? These conflict — `packed` may want one and
-  `fixed` the other.
-- Containment: a fixed type must not contain a free type. May a free type
-  contain a fixed one? (Presumably yes.)
-- Enum and union representation width in the fixed tier.
-- Whether D12's union sizing rule (tag + largest member) becomes fixed-tier
-  only, and what a free-tier union's size means.
+- **The variable tail is unreadable without a length** — see P17. Either
+  SODL length-prefixes variable fields implicitly or the schema names the
+  field carrying the length. Unresolved, and it blocks code generation.
+- **Protobuf import forces reordering, which makes P6 a hard dependency.**
+  Protobuf fields are identified by number and are order-irrelevant on the
+  wire, so hoisting fixed scalars ahead of the variable ones is semantically
+  harmless — *provided* the field numbers ride along. Without P6 the reorder
+  destroys the mapping.
+- **Both example files violate the ordering rule.** `Address` is all
+  `string`s, so `addresses: [Address; 3]` is an array of variable-tailed
+  elements; `contactMethod: ContactMethod` (string members) sits mid-struct
+  in `UserAccount` with fixed fields after it. Both need a pass when this
+  lands.
 - Whether `fixed`/`packed` apply to `object` too, or only `struct`/`union` —
   objects carry keys and identity, which have no C analogue.
+- Whether D12's union sizing rule (tag plus largest member) needs restating
+  in terms of the chosen alignment.
 
 ## P16 — externally-discriminated union
 
