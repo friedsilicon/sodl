@@ -72,6 +72,44 @@ codegen backend is a library against it.
   options, Parquet KV metadata), and — where no mapping exists — the open
   question. That matrix is the first toolchain deliverable, before code.
 
+### Format-interchange gaps
+
+Surfaced by the X → SODL superset requirement. Each construct a source
+format has but SODL lacks is a new proposal; each SODL construct a target
+lacks is a capability-matrix cell with a mitigation or an open question.
+
+Missing SODL constructs — now proposals in `PROPOSALS.md`:
+
+- **Map type** — Avro `map`, Protobuf `map<K,V>`. SODL's only complex types
+  are fixed lists and TLV; an imported map has nowhere to land. P4.
+- **Variable-length list** — Avro `array`, Protobuf `repeated`; SODL has
+  only fixed `[T; N]`. The largest gap: most real schemas use one, so
+  without it X → SODL is non-functional for them. P5.
+- **Explicit field numbers** — Protobuf identifies fields on the wire by
+  number; those must be preserved or binary compatibility breaks. SODL
+  fields have no number. P6.
+- **`decimal<P, S>`** — Avro / Parquet DECIMAL. `Money` is currently an
+  alias for a constrained `string` (D11), which is neither numeric nor
+  scale-aware. P7.
+
+SODL constructs no target represents — capability-matrix cells, not gaps in
+SODL:
+
+- **`tlv<T>`** — a wire byte layout; Avro / Parquet / Protobuf abstract the
+  wire away, and no annotation recovers it. Options: `bytes` + a `sodl.tlv`
+  annotation (native consumers see opaque bytes), or lower tag/length/value
+  into an explicit struct (loses the TLV encoding). Needs a decision.
+- **Fixed-size `[T; N]`** — the `N` survives as a target annotation but stops
+  being enforced, since Avro `array` / Protobuf `repeated` are unbounded.
+- **`key` / `keymap`, `range` / `pattern`, `assigned`, `strict`** — no
+  schema-format home; ride along as custom attributes (Avro), custom options
+  (Protobuf), or KV metadata (Parquet). Round-trip through SODL faithfully;
+  invisible to native consumers. Acceptable — these are SODL concerns.
+- **Temporal logical types** — Avro / Parquet have date, time, timestamp
+  variants, and duration; SODL has only the underspecified `Timestamp`.
+  Deferred, pending the Timestamp encoding decision (see Underspecified). A
+  candidate for its own proposal once that lands.
+
 ## Underspecified
 
 - **`Timestamp`** — no encoding, no precision, no epoch.
