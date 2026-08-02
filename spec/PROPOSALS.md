@@ -398,16 +398,17 @@ field is a compile error rather than a silent demotion to prefix-plus-tail.
 
 **Open questions.**
 
-- **Does the ordering rule apply universally, or only to marked types?**
-  This is the load-bearing question. If universal, every declaration gains a
-  fixed prefix — but the current examples violate it in several places:
-  `Address` is all `string`s, so it is variable-tailed, which makes
-  `addresses: [Address; 3]` an illegal array of variable-tailed elements;
-  and `contactMethod: ContactMethod` (whose members are `string`) sits
-  mid-struct in `UserAccount` with fixed fields after it. If the rule binds
-  only `fixed`/`packed` declarations, free-tier types stay unconstrained and
-  the examples stand. Universal is more useful to backends and more
-  disruptive to what exists.
+- ~~Universal or marked-only?~~ **Settled by D15: universal.** SODL owns its
+  encoding, so every type gets SODL's layout and none opts out. Consequence
+  to work through here: the current examples violate the rule in at least two
+  places — `Address` is all `string`s, making `addresses: [Address; 3]` an
+  array of variable-tailed elements, and `contactMethod: ContactMethod`
+  (string members) sits mid-struct in `UserAccount` with fixed fields after
+  it. Both example files need a pass when this lands.
+- **Bounded strings are needed, and are now two types.** `string<N>` is
+  fixed-size and may sit anywhere, including mid-struct and as a union
+  member; `string` is variable and falls under the ordering rule. This
+  replaces the earlier open question about whether to require `[uint8; N]`.
 - **Arrays of variable-tailed types.** `[T; N]` where `T` has a variable
   tail cannot be indexed — element offsets are not computable. Forbid it in
   the fixed list; but a *variable*-length list (P5) must admit such elements
@@ -429,8 +430,7 @@ field is a compile error rather than a silent demotion to prefix-plus-tail.
   *region* of several fields, or exactly one trailing variable field?
 - Whether the trailing region needs a length prefix so a reader can skip the
   whole tail without decoding it field by field.
-- Bounded strings. A wholly-`fixed` type needs *some* string: `string<N>` as
-  a new bounded type, or require `[uint8; N]`.
+
 - **Which ABI does `fixed` name?** Natural alignment differs across
   32/64-bit and across architectures. Pin one target, parameterize the
   declaration, or define alignment rules in-spec and let backends conform.

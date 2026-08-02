@@ -295,3 +295,49 @@ Rejected: one monolithic spec (a minimal core consumer would carry
 temporal/uuid/json semantics it never uses), and folding logical types into
 core `BasicType` (bloats the fixed-wire core the language is built around —
 D4, D9).
+
+## D15 — SODL is its own wire format
+
+SODL owns an encoding. It is not a description language for other people's
+encodings. The long-term goal is for SODL to *displace* Avro, Parquet, and
+Protobuf as the format data is carried in, not to sit above them as a
+portable way of describing them.
+
+Four things follow, and they settle several open questions at once.
+
+- **The layout rule is universal.** Since every SODL type is encoded by
+  SODL's rules, every SODL type gets SODL's layout: fixed-size fields first,
+  variable-length fields last (P15). There is no class of type that opts out,
+  because there is no foreign encoding for a type to defer to. The `fixed` /
+  `packed` markers therefore do not *grant* a layout — every type has one —
+  they pin alignment and assert the type has no variable tail at all.
+
+- **Byte compatibility with a foreign format is an explicit non-goal.** A
+  SODL-encoded message and a Protobuf-encoded message of the same schema are
+  different bytes, and always were: Protobuf is tagged varints, SODL is
+  positional. Reordering fields on import does not cost byte compatibility,
+  because there was none to lose.
+
+- **Interchange is schema translation plus re-encoding.** X → SODL converts
+  the *schema* and re-encodes the *data*. What must survive a round trip is
+  the schema's meaning and every field's identity — which is why P6 (explicit
+  field numbers) matters: reordering is only reversible if each field carries
+  the identity its source format used. It is not needed for wire compatibility.
+
+- **The capability matrix keeps its meaning, with a narrower claim.** It
+  records what survives X → SODL → X *as a schema*. It says nothing about
+  bytes, and should not be read as promising a shared encoding.
+
+Rejected: **a description language** — SODL faithfully modelling each
+target's own layout (Protobuf's, Avro's, C's) and imposing none of its own.
+That is the more conservative design and would have preserved byte-level
+fidelity, but it makes SODL permanently a layer above the formats it wraps
+and forecloses displacing them. Also rejected: **both regimes**, with each
+type declaring whether it is SODL-encoded or foreign-described. It preserves
+every option and costs a second encoding model, a per-type mode, and two
+sets of rules for every backend — complexity bought before there was a use
+for it.
+
+Note this makes SODL a relative of Cap'n Proto, FlatBuffers, and SBE — which
+own their layouts and reorder declared fields to build them — rather than of
+Protobuf and Avro, which describe data and leave layout to the encoder.
