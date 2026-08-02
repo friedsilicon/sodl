@@ -22,8 +22,12 @@ ImportStatement     ::= "import" ImportTarget "from" StringLiteral
 ImportTarget        ::= "{" IdentList "}"      (* Selective imports *)
                       | "{" "*" "}"            (* Wildcard import *)
 
-/* Declarations */
-Declaration         ::= EnumDecl
+/* Declarations
+ * D16: a struct, union, or object declaration may carry layout modifiers.
+ * Absent any, the layout is `packed`, little-endian.
+ */
+Declaration         ::= LayoutModifier* BaseDeclaration
+BaseDeclaration     ::= EnumDecl
                       | UnionDecl
                       | ConstDecl
                       | StructDecl
@@ -32,8 +36,22 @@ Declaration         ::= EnumDecl
                       | KeyMapDecl
                       | AliasDecl
 
-/* Enum Declaration */
-EnumDecl           ::= "enum" Identifier "{" EnumValueList "}"
+/* Layout modifiers — D16.
+ * `packed` is the default and need not be written. `fixed` aligns each
+ * field to its natural boundary; `fixed(N)` caps that at N bytes, so
+ * `packed` == `fixed(1)`. Byte order is independent of padding.
+ * Legal only on StructDecl, UnionDecl, and ObjectDecl (static check 11).
+ */
+LayoutModifier      ::= "packed"
+                      | "fixed" ( "(" IntegerLiteral ")" )?
+                      | "littleEndian"
+                      | "bigEndian"
+
+/* Enum Declaration
+ * D16: the representation width is declared, defaulting to uint32. An
+ * enum is a fixed-size type of exactly that width.
+ */
+EnumDecl           ::= "enum" Identifier (":" UnsignedType)? "{" EnumValueList "}"
 EnumValueList      ::= EnumValue ("," EnumValue)* ","?
 EnumValue          ::= Identifier ("=" IntegerLiteral)?
 
@@ -76,6 +94,8 @@ StructDecl         ::= "struct" Identifier "{" StructFieldList "}"
 StructFieldList    ::= StructField+
 StructField        ::= Identifier ":" Type ("," StructFieldProp)* ";"
 StructFieldProp    ::= Constraint
+                     | "align" "=" IntegerLiteral      (* D16 *)
+                     | "reserved"                      (* D16 *)
                      | "strict" "=" StrictValue
 
 /* Key Declaration
@@ -96,6 +116,8 @@ ObjectDecl         ::= "object" Identifier "{" ObjectFieldList "}"
 ObjectFieldList    ::= ObjectField+
 ObjectField        ::= Identifier ":" Type ("," ObjectFieldProp)* ";"
 ObjectFieldProp    ::= "assigned" "=" AssignMode
+                     | "align" "=" IntegerLiteral      (* D16 *)
+                     | "reserved"                      (* D16 *)
                      | "required"
                      | "optional"
                      | "key"
@@ -158,9 +180,14 @@ Type               ::= BasicType | ComplexType | UserType
 BasicType          ::= "uint8" | "uint16" | "uint32" | "uint64"
                      | "int8" | "int16" | "int32" | "int64"
                      | "float32" | "float64"
-                     | "string" | "bool"
+                     | StringType | "bool"
                      | "bytes"                    (* D9 *)
                      | "Timestamp"
+/* D16: `string<N>` is exactly N bytes and is fixed-size; bare `string` is
+ * variable-length and falls under the ordering rule (static check 12).
+ */
+StringType         ::= "string" ( "<" IntegerLiteral ">" )?
+
 ComplexType        ::= ListType | TLVType
 ListType           ::= "[" Type ";" IntegerLiteral "]"
 TLVType            ::= "tlv" "<" Type ">"         (* D8: any Type, nesting allowed *)
@@ -240,6 +267,22 @@ Comment            ::= "//" [^\n]*
  *    plus the field's own. Intersection, never override.
  * 9. (D12) A union member's tag must fit its union's tag type. Member
  *    names and tag values are each unique within the union.
+ * 11. (D16) Layout modifiers are legal only on a struct, union, or object
+ *    declaration, and at most one padding modifier and one byte-order
+ *    modifier may appear.
+ * 12. (D16) ORDERING RULE. Within a declaration, no fixed-size field may
+ *    follow a variable-length field. The variable-length constructs are
+ *    bare `string`, `bytes`, `tlv<T>`, and any type transitively containing
+ *    one. A type containing a variable-length field is itself
+ *    variable-tailed and may appear only as the last field of whatever
+ *    contains it.
+ * 13. (D16) A fixed-length list `[T; N]` requires T to be fixed-size:
+ *    element offsets must be computable.
+ * 14. (D16) `string<N>` requires N > 0. A string literal longer than N
+ *    bytes is an error where it is statically known.
+ * 15. (D16) `align = N` requires N to be a power of two, as does the N in
+ *    `fixed(N)`. `reserved` is legal only on a field whose type is
+ *    fixed-size.
  * 10. (D12) A union member type must be fixed-size. `bytes` and `tlv<T>`,
  *    the variable-length constructs, are not admissible member types.
  *    (The regex checker sees these directly; it does not trace a struct

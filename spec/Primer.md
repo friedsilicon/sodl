@@ -160,17 +160,18 @@ a type:
 
 ```sodl
 union ContactMethod : uint8 {
-    Email  = 1 -> string;
-    Phone  = 2 -> string;
+    Email  = 1 -> string<254>;
+    Phone  = 2 -> string<32>;
     Postal = 3 -> Address;
 }
 ```
 
 The tags are written, not counted — they're the wire discriminant, so
 reordering the members must not change them. Every member type has to be
-fixed-size (so `bytes` and `tlv<T>` are out), which is what lets a union sit
-in a fixed-length list: `[ContactMethod; 3]` has a length because a union
-is the tag plus its largest member.
+fixed-size — so `bytes`, `tlv<T>`, and bare `string` are all out, which is
+why the members above are `string<N>`. That is what lets a union sit in a
+fixed-length list: `[ContactMethod; 3]` has a length because a union is the
+tag plus its largest member.
 
 In data, you name the member and hand it a value; the tag comes from the
 name:
@@ -187,10 +188,39 @@ into each other.
 
 - `bytes` — variable-length binary: certs, keys, cache bodies.
   `[uint8; 32]` when the length is fixed.
-- `[T; N]` — fixed-length list. Nestable.
+- `string<N>` — exactly N bytes, fixed-size. `string` on its own is
+  variable-length.
+- `[T; N]` — fixed-length list. T must be fixed-size, so `[string<16>; 5]`
+  works and `[string; 5]` does not. Nestable.
 - `tlv<T>` — tag/length/value around any type, including structs and other
   TLVs.
 - `Crypto.SHA256Hash` — a type from an import alias.
+
+## Layout
+
+SODL is its own wire format, so every declaration has a byte layout.
+
+```sodl
+packed struct Packet {      // packed is the default: no padding
+    version: uint8;         // offset 0
+    id:      [uint8; 16];   // offset 1
+    payload: bytes;         // variable — must come last
+}
+
+fixed struct Header { … }   // natural alignment instead, for C overlay
+bigEndian packed struct IpHeader { … }   // little-endian by default
+```
+
+One rule shapes how you write a declaration: **variable-length fields go
+last.** Once a `string`, `bytes`, or `tlv<T>` appears, no fixed-size field
+may follow it — otherwise that field would have no computable offset. So
+every declaration has a fixed prefix a C program can read directly, and a
+trailing region that gets walked.
+
+It is transitive. A struct containing a bare `string` is itself
+variable-length, so it too may only appear last in whatever holds it — and
+it cannot be an element of `[T; N]`. That is usually the nudge to reach for
+`string<N>` instead.
 
 ## Next
 

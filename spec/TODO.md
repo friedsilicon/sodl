@@ -28,19 +28,6 @@ promises structural and constraint matching of instance values, and
 `check-sodl.py` still implements none of it. This needs an AST — the regex
 lint cannot match a literal against an alias's pattern.
 
-**The union fixed-size rule is wrong, and the spec's own example breaks it.**
-Spec 4.5 requires a union member to be fixed-size and excludes only `bytes`
-and `tlv<T>` -- but `string` is variable-length too, is not excluded, is not
-checked (`check-sodl.py` check 10 greps for `bytes`/`tlv` only), and is used
-as a member in both example files (`Email = 1 -> string`). So the conclusion
-that follows -- "a union is itself fixed-size and may appear in a
-fixed-length list" -- is false for `ContactMethod`, the spec's own
-illustration. The same leak runs through lists: `[Address; 3]` is called
-fixed-length while `Address` holds five `string` fields. This is broader
-than the transitive `bytes`/`tlv` hole recorded under Underspecified.
-Resolved by the two-tier split (P15) -- until then, the claim stands
-contradicted.
-
 ## Next steps
 
 - **Make one import resolvable.** D10 pulled `UUID` and `Money` in-file as
@@ -182,11 +169,16 @@ SODL:
   unstated (audit defect 22). `random` likewise: source, width, uniqueness.
 - **`cascadeDelete`** — one sentence, no story for cycles.
   `advanced-examples.sodl` has a real `Department` ↔ `Employee` cycle.
-- **Union member fixed-size is checked shallowly (D12).** `check-sodl.py`
-  rejects a `bytes` or `tlv<T>` union member directly, but a member typed as
-  a struct that transitively contains a `bytes` or `tlv` field slips through.
-  The same transitive hole exists for `[T; N]` lists; both need the AST the
-  regex checker doesn't have.
+- **Layout checks do not cross files.** `check-sodl.py` now resolves
+  variable-length-ness transitively through aliases, structs, objects, and
+  unions (D16, static checks 12 and 13), but an imported name
+  (`Crypto.SHA256Hash`, `IPAddress`, `GeoLocation`) is unknown and assumed
+  fixed-size. If one is variable, the ordering rule is silently violated.
+  Same blind spot as static check 4, and the same fix: resolve imports.
+- **`fixed` alignment is unimplemented.** D16 defines natural alignment and
+  `fixed(N)`, but nothing computes offsets or sizes yet — that belongs to
+  the IR, not the regex checker. No example uses `fixed`, `align`, or
+  `reserved` for the same reason.
 
 ## Program of work
 

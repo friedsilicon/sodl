@@ -341,3 +341,72 @@ for it.
 Note this makes SODL a relative of Cap'n Proto, FlatBuffers, and SBE — which
 own their layouts and reorder declared fields to build them — rather than of
 Protobuf and Avro, which describe data and leave layout to the encoder.
+
+## D16 — Layout: packed by default, and the ordering rule (P15)
+
+D15 made SODL its own wire format, so every type has a byte layout and the
+language states it. Nine calls, and what each rejected.
+
+**Padding is `packed` by default.** An unmarked declaration inserts no
+padding, so its bytes are identical on every platform. `fixed` is the opt-in
+for overlaying a C struct, and `fixed(N)` caps alignment the way
+`#pragma pack(N)` does — which makes `packed` exactly `fixed(1)`, one
+mechanism rather than two. Rejected: defaulting to `fixed`, which would make
+the wire format vary by ABI and is wrong for a format whose purpose is
+exchange; and requiring a keyword always, which is noise on the common case.
+
+**Natural alignment is defined in the spec, not inherited from an ABI.**
+Each scalar aligns to its own width, an aggregate to its most-aligned
+member. Rejected: naming a platform ABI — SODL would inherit a foreign
+specification that varies by architecture and changes without us. The known
+divergence is 32-bit x86, which aligns `uint64` and `float64` to 4; a
+declaration targeting it writes `fixed(4)`.
+
+**Byte order is declared per declaration, defaulting to little-endian, and
+is independent of padding.** Every modern host is little-endian and every
+format SODL would displace chose it. `bigEndian` exists because network
+protocols use it by convention, which is exactly the interop case. Rejected:
+little-endian with no escape, which would make those protocols
+inexpressible; per-field byte order, since mixed-endian structs are rare and
+not worth the checking cost; and tying byte order to `fixed`/`packed`, which
+would let one field encode two ways depending on a padding keyword.
+
+**The ordering rule: no fixed-size field may follow a variable-length one.**
+Every declaration therefore has a fixed prefix with static offsets, which is
+what makes C overlay work — the prefix casts, the tail is walked. It
+generalizes C99's flexible array member from one trailing array to a
+trailing region. Variable-tailedness is transitive: a type containing a
+variable field may appear only last in whatever contains it.
+
+**Several variable fields may share the trailing region.** Rejected:
+permitting exactly one. Protobuf messages routinely carry several `string`
+and `repeated` fields, and forcing a wrapper struct around each would be
+absurd for the primary X → SODL direction.
+
+**Variable-length fields are length-prefixed with a `uint32` byte count.**
+A reader can then find the end of a field without understanding it, which
+the trailing region requires. `tlv<T>` already carries its own length and is
+not prefixed twice. Rejected: a varint prefix, which is more compact but
+costs decode complexity and unaligned reads; and no prefix at all, which
+would leave every variable field's extent undefined until P17's `lengthOf`
+lands. P17 may later *suppress* the prefix where an existing field already
+carries the length — that is an addition, not a reversal.
+
+**`string<N>` is fixed-size; bare `string` is variable.** N is a byte count;
+a shorter value is NUL-padded, a longer one is an error. This gives the
+fixed tier a usable string and matches C's `char[N]`. Rejected: requiring
+`[uint8; N]`, which is the same bytes with none of the meaning.
+
+**`enum` declares its width, defaulting to `uint32`.** C leaves enum width
+implementation-defined, which a wire format cannot. The default matches C's
+usual `int` width; narrower enums say so. `bool` is one byte holding 0 or 1.
+
+**Layout modifiers apply to `struct`, `union`, and `object` alike.** An
+object is encoded like a struct and additionally carries identity; there is
+no reason its layout would be undefined. Rejected: restricting them to
+struct and union.
+
+Consequence: `[T; N]` now requires T fixed-size, and both example files were
+rewritten — bounded strings throughout, and fields reordered where a
+variable one preceded a fixed one. That churn is the cost of the layout
+guarantee, made visible.

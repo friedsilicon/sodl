@@ -10,15 +10,19 @@
 // Timestamp is NOT aliased or imported — it is a BasicType (see
 // DECISIONS.md, and static check 5: a name colliding with a BasicType is an
 // error, not shadowing).
-alias UUID = string, pattern = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
+// D16: `string<36>` is exactly 36 bytes — a UUID's canonical text length —
+// so UUID is fixed-size and may sit anywhere, including in a fixed list.
+// Bare `string` would be variable-length and confined to a trailing region.
+alias UUID = string<36>, pattern = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
 
 // Named literals — D10. A const stands in for its value wherever a literal
 // of its type is legal: a range bound, a default, and instance data below.
 const MAX_LOGIN_ATTEMPTS: uint8 = 5;
 const DEFAULT_THEME: string = "light";
 
-// Enum for user roles
-enum UserRole {
+// Enum for user roles. D16: an enum declares its width, defaulting to
+// uint32; these fit a byte.
+enum UserRole : uint8 {
     Admin = 1,
     Editor = 2,
     Viewer = 3,
@@ -26,7 +30,7 @@ enum UserRole {
 }
 
 // Enum for account status
-enum AccountStatus {
+enum AccountStatus : uint8 {
     Active = 1,
     Suspended = 2,
     Locked = 3,
@@ -37,20 +41,26 @@ enum AccountStatus {
 // A tag type (uint8, the wire discriminant) plus a `name = tag -> Type`
 // binding per member. Each member type is fixed-size, so ContactMethod is
 // fixed-size and may sit in a fixed-length list.
+// D16: every member is fixed-size, so ContactMethod is too and may appear
+// in `[ContactMethod; N]`. A bare `string` member would make it
+// variable-tailed and inadmissible there.
 union ContactMethod : uint8 {
-    Email  = 1 -> string;
-    Phone  = 2 -> string;
+    Email  = 1 -> string<254>;
+    Phone  = 2 -> string<32>;
     Postal = 3 -> Address;
 }
 
 // Struct for detailed address.
 // D1: every field terminates with ';', in structs as in objects.
+// D16: bounded strings keep Address fixed-size, which is what lets
+// `[Address; 3]` compute element offsets. With bare `string` fields it
+// would be variable-tailed and illegal as a fixed list's element type.
 struct Address {
-    street: string;
-    city: string;
-    state: string;
-    zipCode: string;
-    country: string;
+    street: string<64>;
+    city: string<48>;
+    state: string<32>;
+    zipCode: string<16>;
+    country: string<56>;
     latitude: float64;
     longitude: float64;
     elevationMeters: float32;
@@ -62,21 +72,21 @@ struct Address {
 // or keymap. Both directions are checked.
 key UserProfile {
     userId: UUID;
-    username: string;
-    email: string;
+    username: string<32>;
+    email: string<254>;
 }
 
 // Key for Authentication
 key AuthKey {
-    loginToken: string;
+    loginToken: string<64>;
 }
 
 // Complex User Account Object.
 // D2: no `type =` prefix. D1: ';' terminates fields, ',' separates props.
 object UserAccount {
     userId: UUID, assigned = counter, key;
-    username: string, key;
-    email: string, key;
+    username: string<32>, key;
+    email: string<254>, key;
     profile: UserProfile;
     role: UserRole, default = UserRole.Guest;
     status: AccountStatus, default = AccountStatus.Pending;
@@ -92,9 +102,9 @@ object UserAccount {
 // it and a keymap using it — see PreferencesKey below.
 object UserPreferences {
     userId: UUID, key;
-    theme: string, default = DEFAULT_THEME;
+    theme: string<16>, default = DEFAULT_THEME;
     notifications: bool, default = true;
-    language: string, default = "en";
+    language: string<8>, default = "en";
 }
 
 // Primary key for UserPreferences. D6: there is no implicit primary key;
@@ -132,15 +142,15 @@ keymap UserId:UserAccount {
 // Organization Key and Object
 key OrganizationKey {
     orgId: UUID;
-    orgName: string;
+    orgName: string<128>;
 }
 
 object Organization {
     orgId: UUID, assigned = counter, key;
-    orgName: string, key;
-    domain: string;
+    orgName: string<128>, key;
+    domain: string<253>;
     foundedDate: Timestamp;
-    status: string;
+    status: string<16>;
     employeeCount: int64;
 }
 

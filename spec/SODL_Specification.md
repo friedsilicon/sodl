@@ -9,9 +9,14 @@ one of them — report it.
 
 ## 1. Scope
 
-SODL defines data structures, their relationships, their constraints, and
-their populated values. A `.sodl` file carries schema and data together
-(§7); SODL is a typed configuration language, not a schema-only IDL.
+SODL defines data structures, their relationships, their constraints, their
+populated values, and the byte layout by which they are exchanged. A `.sodl`
+file carries schema and data together (§7).
+
+SODL is its own wire format, not a description of other formats' encodings:
+every type has a layout defined here (§4.6). Converting to and from Avro,
+Parquet, or Protobuf translates the schema and re-encodes the data; it does
+not reuse their bytes.
 
 ## 2. Program structure
 
@@ -38,16 +43,24 @@ Identifiers match `[a-zA-Z_][a-zA-Z0-9_]*`.
 `uint8` `uint16` `uint32` `uint64` `int8` `int16` `int32` `int64`
 `float32` `float64` `string` `bool` `bytes` `Timestamp`
 
+`string` is variable-length UTF-8. `string<N>` is exactly N bytes and is
+therefore fixed-size: a shorter value is padded with NUL, a longer one is an
+error, and a reader stops at the first NUL or at N bytes.
+
 `bytes` is a variable-length byte array. For fixed-length runs use
 `[uint8; N]`.
+
+An `enum` declares its representation width — `enum Status : uint8 { … }` —
+defaulting to `uint32` when omitted. An enum is fixed-size, of that width.
 
 Importing a name that collides with a basic type is an error. Basic types
 are not shadowable.
 
 ### 4.2 Complex types
 
-- **List:** `[T; N]` — fixed-length, N elements of type T. Nestable:
-  `[[string; 2]; 5]`.
+- **List:** `[T; N]` — fixed-length, N elements of type T. T must be
+  fixed-size, since element offsets are computed from it; `[string; 5]` is
+  an error, `[string<32>; 5]` is not. Nestable: `[[string<8>; 2]; 5]`.
 - **TLV:** `tlv<T>` — tag, byte length, value. T is *any* type, including
   structs and further TLVs. The value is encoded per T's own rules.
 
@@ -108,17 +121,88 @@ Rules, checked statically:
 - Tag values are explicit and must fit in `TagType`. Member names and tag
   values are each unique within the union. There is no implicit numbering:
   the tag is a wire contract, so it is written, not inferred from position.
-- A member type must be fixed-size. `bytes` and `tlv<T>` — the
-  variable-length constructs — are not admissible member types.
+- A member type must be fixed-size. The variable-length constructs — bare
+  `string`, `bytes`, `tlv<T>`, and any type transitively containing one —
+  are not admissible member types. `string<N>` is fixed and therefore is.
 
 A union is encoded as the tag followed by the selected member's value. Its
-size is the size of `TagType` plus the size of the largest member, so a
-union is itself fixed-size and may appear in a fixed-length list
-(`[ContactMethod; 3]`).
+size is the size of `TagType` plus the size of the largest member, rounded
+to the union's alignment (§4.6), so a union is itself fixed-size and may
+appear in a fixed-length list (`[ContactMethod; 3]`).
 
 Union and enum are separate constructs. An enum member is a bare named
 integer and carries no payload; a union member binds a type. Neither
 subsumes the other.
+
+### 4.6 Layout
+
+Every declaration has a byte layout. SODL owns its encoding, so there is no
+type whose layout is left to a backend.
+
+**Padding.** A `struct`, `union`, or `object` declaration may carry layout
+modifiers. Absent any, it is `packed`.
+
+    packed struct WireHeader { … }    // no padding — the default
+    fixed  struct Header     { … }    // natural alignment
+    fixed(4) struct Capped   { … }    // alignment capped at 4 bytes
+
+`packed` inserts no padding: each field begins where the previous one ended.
+`fixed` aligns each field to its natural boundary and rounds the type's size
+up to the type's own alignment. `fixed(N)` caps every alignment at N, so
+`packed` is exactly `fixed(1)`. N must be a power of two.
+
+Natural alignment is defined here, not inherited from any platform ABI:
+
+| Type | Alignment |
+|---|---|
+| `uint8` `int8` `bool` | 1 |
+| `uint16` `int16` | 2 |
+| `uint32` `int32` `float32` | 4 |
+| `uint64` `int64` `float64` | 8 |
+| `string<N>`, `[uint8; N]` | 1 |
+| `[T; N]` | alignment of T |
+| struct, union, object | alignment of its most-aligned member |
+
+`bool` occupies one byte and holds 0 or 1; any other value is invalid.
+
+A field may raise its own boundary with `align = N`, or be declared
+`reserved` — occupying its bytes, carrying no value, and neither read nor
+written by generated code. `reserved` states a layout exactly instead of
+leaving a reader to infer what padding some compiler would have inserted.
+
+**Byte order** is declared per declaration and defaults to little-endian:
+
+    bigEndian packed struct IpHeader { … }
+
+Byte order is independent of padding: the same field must not encode two
+ways depending on a padding modifier. A declaration whose byte order differs
+from the host's cannot be overlaid without copying — that cost falls on
+declarations describing a foreign protocol, which is where it belongs.
+
+**The ordering rule.** Within a declaration, no fixed-size field may follow
+a variable-length field:
+
+    packed struct Packet {
+        version: uint8;        // offset 0
+        id:      [uint8; 16];  // offset 1
+        payload: bytes;        // variable — must come last
+    }
+
+The variable-length constructs are bare `string`, `bytes`, `tlv<T>`, and any
+type transitively containing one. Every declaration therefore has a fixed
+prefix whose offsets are known statically, whether or not it also has a
+variable tail.
+
+A type containing a variable-length field is itself **variable-tailed** and
+may appear only as the last field of whatever contains it — otherwise the
+next field's offset would not be computable. The rule is transitive.
+
+Several variable-length fields may share the trailing region; they decode in
+order, and only the first has a static offset.
+
+**Variable-length fields are length-prefixed** by a `uint32` byte count, so
+a reader can find the end of one without understanding its contents. `tlv<T>`
+is already self-delimiting and carries no additional prefix.
 
 ## 5. Fields
 
@@ -138,6 +222,8 @@ Every field terminates with `;`. Props within a field are separated by `,`:
 | `assigned = counter \| random` | The value is generated, not supplied. |
 | `default = Value` | Value used when the field is absent. |
 | `strict = Literal` | The field must equal this literal exactly. |
+| `align = N` | Raise this field's alignment to N bytes (§4.6). |
+| `reserved` | The field is padding: it occupies bytes but carries no value (§4.6). |
 | `range(min, max)` | Numeric bounds, inclusive. |
 | `pattern = "regex"` | String must match. |
 

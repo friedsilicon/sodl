@@ -105,6 +105,99 @@ def fields(body):
             yield m.group(1), m.group(2)
 
 
+# --- D16 layout: variable-length detection, the ordering rule, and fixed
+# lists. A type is variable-length if it is bare `string`, `bytes`, a
+# `tlv<T>`, or any declared type transitively containing one. `string<N>` is
+# fixed. Imported names are unknown and assumed fixed -- the regex checker
+# cannot see across files, which is the same blind spot noted for static
+# check 4.
+
+def type_graph(src):
+    """Collect alias targets, aggregate field types, and union member types."""
+    aliases = dict(re.findall(r"^alias\s+(\w+)\s*=\s*([^,;]+)", src, re.M))
+    aggregates = {}
+    for kw in ("struct", "object"):
+        for name, body in blocks(src, kw):
+            aggregates[name] = [t for _, t in fields(body)]
+    for m in re.finditer(r"^union (\w+)\s*:[^{]*\{(.*?)^\}", src, re.S | re.M):
+        members = []
+        for line in m.group(2).splitlines():
+            line = re.sub(r"//.*", "", line)
+            mm = re.match(r"\s*\w+\s*=\s*\S+\s*->\s*(.+?)\s*;\s*$", line)
+            if mm:
+                members.append(mm.group(1).strip())
+        aggregates[m.group(1)] = members
+    return aliases, aggregates
+
+
+def strip_props(t):
+    """A field's text is `Type, prop, prop` -- keep the type."""
+    depth = 0
+    for i, ch in enumerate(t):
+        if ch in "[<":
+            depth += 1
+        elif ch in "]>":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            return t[:i].strip()
+    return t.strip()
+
+
+def is_variable(t, aliases, aggregates, seen=None):
+    t = strip_props(t)
+    seen = seen or set()
+    if re.match(r"^tlv\s*<", t) or t == "bytes" or t == "string":
+        return True
+    if re.match(r"^string\s*<\s*\d+\s*>$", t):
+        return False
+    m = re.match(r"^\[(.+);[^;\]]+\]$", t)
+    if m:
+        # A fixed list is itself fixed; a variable element is check 13's error.
+        return False
+    if t in seen:
+        return False
+    seen = seen | {t}
+    if t in aliases:
+        return is_variable(aliases[t], aliases, aggregates, seen)
+    if t in aggregates:
+        return any(is_variable(f, aliases, aggregates, seen) for f in aggregates[t])
+    return False
+
+
+def check_layout(src):
+    """Static checks 12 and 13 (D16)."""
+    errs = []
+    aliases, aggregates = type_graph(src)
+
+    # 12: within a declaration, no fixed field may follow a variable one.
+    for kw in ("struct", "object"):
+        for name, body in blocks(src, kw):
+            seen_var = None
+            for fname, ftext in fields(body):
+                if is_variable(ftext, aliases, aggregates):
+                    seen_var = seen_var or fname
+                elif seen_var:
+                    errs.append(
+                        f"{name}.{fname}: fixed-size field follows variable-length "
+                        f"`{seen_var}` (D16 ordering rule, static check 12)"
+                    )
+
+    # 13: a fixed list needs a fixed-size element type.
+    for m in re.finditer(r"\[([^\[\]]+);[^;\]]+\]", src):
+        elem = m.group(1).strip()
+        if is_variable(elem, aliases, aggregates):
+            errs.append(
+                f"[{elem}; N]: element type is variable-length; a fixed list "
+                f"needs computable offsets (D16, static check 13)"
+            )
+    return errs
+
+
+def _is_var_member(mtype, src):
+    aliases, aggregates = type_graph(src)
+    return is_variable(mtype, aliases, aggregates)
+
+
 def check(path):
     src = open(path).read()
     errs = []
@@ -220,11 +313,14 @@ def check(path):
                 seen_tags[tagval] = mname
             if bits is not None and tagval >= (1 << bits):
                 errs.append(f"union {uname}.{mname}: tag {tag} does not fit in {tagtype} (D12)")
-            if mtype == "bytes" or re.match(r"tlv\s*<", mtype):
+            if _is_var_member(mtype, src):
                 errs.append(
                     f"union {uname}.{mname}: member type `{mtype}` is variable-length; "
                     f"union members must be fixed-size (D12)"
                 )
+
+    # --- D16 (static checks 12, 13): layout ordering and fixed lists.
+    errs += check_layout(src)
 
     # --- defect 19: importing a name that collides with a BasicType.
     for m in re.finditer(r"^import\s*\{([^}]*)\}", src, re.M):

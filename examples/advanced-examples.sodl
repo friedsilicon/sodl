@@ -21,8 +21,8 @@ const DEFAULT_SESSION_TIMEOUT: uint32 = 3600;
 // constraint, which is local). `UUID` and `Money` were previously imported
 // from a `common_types` module that did not exist — they are constrained
 // primitives, which no other construct can name.
-alias UUID  = string, pattern = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
-alias Money = string, pattern = "^[0-9]+\.[0-9]{2}$";
+alias UUID  = string<36>, pattern = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
+alias Money = string<24>, pattern = "^[0-9]+\.[0-9]{2}$";
 
 // An alias may name another alias — chains resolve transitively and their
 // constraints accumulate. `EntityId` is transparently a `UUID`, hence a
@@ -37,7 +37,7 @@ alias AddressIndex = uint8, range(0, 9);
 
 // Advanced enum with explicit hex values (defect 11).
 // Bit flags, so each value is a distinct bit.
-enum TransactionStatus {
+enum TransactionStatus : uint8 {
     Pending = 0x01,    // Transaction initiated
     Verified = 0x02,   // Transaction verified but not processed
     Processing = 0x04, // Transaction is being processed
@@ -48,15 +48,15 @@ enum TransactionStatus {
 
 // Discriminated union with multiple options (D12). Every member type is
 // fixed-size, so AuthenticationFactor is fixed-size and `[AuthenticationFactor;
-// 3]` below has a defined length. `bytes` would be rejected here — a
-// variable-length member is not admissible — so BiometricData is carried as
-// a fixed [uint8; N] run instead.
+// 3]` below has a defined length. D16: `bytes` and bare `string` are both
+// rejected here — either would make the union variable-tailed — so the
+// token members are bounded and BiometricData is a fixed [uint8; N] run.
 union AuthenticationFactor : uint8 {
     PasswordHash = 1 -> Crypto.SHA256Hash;
-    TOTPToken    = 2 -> string;
+    TOTPToken    = 2 -> string<8>;
     BiometricData = 3 -> [uint8; 512];
     SecurityKey  = 4 -> [uint8; 64];
-    RecoveryCode = 5 -> string;
+    RecoveryCode = 5 -> string<16>;
 }
 
 // D4: named structs only — no anonymous inline object types.
@@ -79,18 +79,21 @@ struct SecurityConfiguration {
 }
 
 // D4: lifted from the anonymous `deviceInfo: { ... }` in UserSession.
+// D16: bounded strings keep DeviceInfo fixed-size. Were userAgent a bare
+// `string`, DeviceInfo would be variable-tailed and could only appear as the
+// last field of UserSession — where it is followed by five more.
 struct DeviceInfo {
-    userAgent: string, required;
+    userAgent: string<128>, required;
     ipAddress: IPAddress, required;
     geoLocation: GeoLocation, optional;
-    deviceFingerprint: string, pattern = "^[a-f0-9]{64}$";
+    deviceFingerprint: string<64>, pattern = "^[a-f0-9]{64}$";
 }
 
 // Key with complex validation.
 // D5: Crypto.SHA256Hash is a QualifiedType — resolved in module scope.
 key SessionKey {
     sessionId: Crypto.SHA256Hash;
-    deviceFingerprint: string, pattern = "^[a-f0-9]{64}$";
+    deviceFingerprint: string<64>, pattern = "^[a-f0-9]{64}$";
     ipAddress: IPAddress;
 }
 
@@ -130,21 +133,24 @@ struct OrderCustomer {
 }
 
 // D4: lifted from the anonymous element type of `items: [{ ... }; 50]`.
+// D16: `metadata: tlv<string>` was removed. A tlv is variable-length, which
+// would make OrderItem variable-tailed — and `[OrderItem; 50]` below needs a
+// fixed-size element to compute offsets. tlv is still demonstrated on
+// UserSession and CacheEntry, whose trailing regions can carry it.
 struct OrderItem {
     productId: UUID;
     quantity: uint16, range(1, 1000);
     price: Money;
-    discounts: [string; 5];
-    metadata: tlv<string>;
+    discounts: [string<16>; 5];
 }
 
 // D4: lifted from the anonymous `payment: { ... }` in ECommerceOrder.
 struct OrderPayment {
-    method: string;
+    method: string<24>;
     status: TransactionStatus;
     amount: Money;
-    currency: string, pattern = "^[A-Z]{3}$";
-    processorRef: string;
+    currency: string<3>, pattern = "^[A-Z]{3}$";
+    processorRef: string<64>;
 }
 
 // Complex object with nested arrays and validation
@@ -153,7 +159,7 @@ object ECommerceOrder {
     customer: OrderCustomer;
     items: [OrderItem; 50];
     payment: OrderPayment;
-    status: string;
+    status: string<16>;
     createdAt: Timestamp;
     updatedAt: Timestamp;
 }
@@ -178,7 +184,7 @@ keymap SessionKey:UserSession {
 // Demonstration of circular references and complex relationships
 object Department {
     deptId: UUID, assigned = counter, key;
-    name: string, required;
+    name: string<64>, required;
     managerId: UUID, optional, key;   // References an Employee
     location: GeoLocation;
     budget: Money;
@@ -190,10 +196,10 @@ object Employee {
     departmentId: UUID, key;  // References a Department
     supervisor: UUID, optional;         // References another Employee
     subordinates: [UUID; 20];           // Array of Employee IDs
-    permissions: [string; 50];
+    permissions: [string<32>; 50];
     accessLevel: uint8, range(1, 10);
     hireDate: Timestamp;
-    status: string, pattern = "^(Active|OnLeave|Terminated)$";
+    status: string<16>, pattern = "^(Active|OnLeave|Terminated)$";
 }
 
 // Complex keymaps for circular references.
@@ -241,9 +247,9 @@ struct BaseAuditInfo {
 
 // D4: lifted from the anonymous element type of `changes: [{ ... }; 100]`.
 struct AuditChange {
-    field: string;
-    oldValue: string;
-    newValue: string;
+    field: string<64>;
+    oldValue: string<128>;
+    newValue: string<128>;
     timestamp: Timestamp;
     changedBy: UUID;
 }
@@ -252,7 +258,7 @@ object AuditedEntity {
     // D11: EntityId chains onto UUID — a transparent synonym, so this is
     // the same type the AuditedEntityKey declaration names as UUID.
     entityId: EntityId, assigned = counter, key;
-    entityType: string;
+    entityType: string<32>;
     auditInfo: BaseAuditInfo;
     changes: [AuditChange; 100];
 }
@@ -270,17 +276,22 @@ keymap AuditedEntityKey:AuditedEntity {
 // Variable-length binary: certs, keys, hashes, cache bodies. Distinct
 // from [uint8; N], which is fixed-length.
 
+// D16 ordering rule: fingerprint is fixed-size, so it precedes the two
+// variable-length fields. Written the other way round — as it originally
+// was — the fixed field would follow a variable one and have no computable
+// offset. Both `bytes` fields share the trailing region and decode in order.
 struct TlsIdentity {
+    fingerprint: [uint8; 32];          // fixed length — SHA-256
     certificate: bytes, required;      // variable length — DER cert
     privateKey: bytes, required;       // variable length
-    fingerprint: [uint8; 32];          // fixed length — SHA-256
 }
 
+// D16: the fixed fields come first, then the variable trailing region.
 object CacheEntry {
     cacheKey: Crypto.SHA256Hash, key;
-    body: bytes;                       // arbitrary payload
-    contentType: string;
+    contentType: string<64>;
     storedAt: Timestamp;
+    body: bytes;                       // arbitrary payload — variable
     // D8: tlv accepts any Type, not just primitives. T = tag,
     // L = byte length, V = inner encoding; nesting is allowed.
     headers: tlv<AuditChange>;
