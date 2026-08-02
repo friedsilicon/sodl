@@ -70,7 +70,7 @@ codegen backend is a library against it.
   per-target capability matrix must record every construct that does *not*
   round-trip cleanly, its mitigation (Avro logical types, Protobuf custom
   options, Parquet KV metadata), and — where no mapping exists — the open
-  question. That matrix is the first toolchain deliverable, before code.
+  question. First cut: `CAPABILITY_MATRIX.md`.
 
 - **Editor support — future, separate artifact.** A tree-sitter grammar for
   syntax highlighting and an LSP for authoring `.sodl` by hand. Tree-sitter

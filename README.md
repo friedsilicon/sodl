@@ -35,6 +35,7 @@ spec/           the language definition
   PROPOSALS.md            constructs under consideration — non-normative
   Primer.md               introduction by example — non-normative
   TODO.md                 known gaps, bugs, and the toolchain plan
+  CAPABILITY_MATRIX.md    per-target construct mapping — non-normative
 examples/       example.sodl (core), advanced-examples.sodl (constraints,
                 TLV, bytes, qualified names, instance data)
 scripts/        check-sodl.py — static checks the grammar cannot express

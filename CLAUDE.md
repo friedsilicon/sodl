@@ -26,6 +26,7 @@ either:
 | `spec/DECISIONS.md` | Settled calls, with the reasoning. One record per decision, `D<n>`. |
 | `spec/PROPOSALS.md` | Constructs under consideration, `P<n>`. Nothing here is in the grammar. |
 | `spec/TODO.md` | Known gaps, bugs, and the toolchain plan. |
+| `spec/CAPABILITY_MATRIX.md` | What each construct maps to per target, and what it costs. |
 | `spec/Primer.md` | Tutorial. |
 
 A proposal moves from `spec/PROPOSALS.md` to normative status by acquiring a
