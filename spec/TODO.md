@@ -120,8 +120,19 @@ SODL:
 ## Underspecified
 
 - **`Timestamp`** — no encoding, no precision, no epoch.
-- **`strict`** — in grammar and spec, used in zero examples, semantics
-  undefined. Audit flagged it; still open.
+- **`strict` — flagged for future refinement.** Direction established but
+  deliberately not decided: `strict = <literal>` means the value is
+  constant and must equal that literal, and the field is still transmitted
+  normally on the wire (no elision — eliding would change layout between a
+  pinning and a non-pinning party). The hard part is that constancy is
+  *party-relative*: a producer serving several consumers leaves a field
+  open while each consumer pins it. That pin does not belong in the shared
+  declaration; the intended workflow is each party importing the shared
+  schema and overriding its own copy, which needs P14 (import refinement).
+  Still open: whether `strict` implies `required`, whether `strict` with
+  `default` is an error, whether an instance may omit a strict field, and
+  the static checks for each. Do not land until P14 settles — the two are
+  one design.
 - **`range` accepts floats on integer types.** `range(0.5, 1.5)` on a `uint8`
   parses. Should be type-checked against the field, or restricted.
 - **`assigned = counter`** — scope, monotonicity, and collision behaviour

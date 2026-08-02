@@ -306,7 +306,8 @@ refine Order {
 }
 ```
 
-**Motivation.** `strict` marks a field constant (see the strict resolution).
+**Motivation.** `strict` marks a field constant (semantics still open — see
+`TODO.md`, Underspecified; the two are one design).
 But constancy is often *party-relative*: a producer talking to several
 consumers leaves a field variable, while each consumer pins it to the value
 it accepts. Both views are correct simultaneously, so the pin cannot live in
